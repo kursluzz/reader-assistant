@@ -103,6 +103,22 @@ Please listen and judge:
 
 Quality judgements are yours. The numbers above do not replace them.
 
+### Listening result (Product Owner, 2026-11-17)
+
+- **English, Kokoro:** very good.
+- **Hebrew, Piper `he_IL-saspeech-medium`:** medium, "medium well". Usable, not bad. Not yet judged as natural Hebrew.
+- **Russian:** not yet available. The approved voice (`ru_RU-irina-medium`) is on hold because its dataset licence is unknown. See the Russian candidates below.
+- **Speed:** not reported.
+
+#### Russian candidates (checked 2026-11-17)
+
+| Voice | Dataset licence | Status |
+|---|---|---|
+| `ru_RU-denis-medium` | CC0 (Nabu Casa `voice-datasets`, `ru_RU/denis`) | Candidate. Licence established. Not downloaded. |
+| `ru_RU-dmitri-medium` | CC0 (same dataset project) | Candidate. Licence established. Not downloaded. |
+| `ru_RU-irina-medium` | Unknown (RHVoice) | On hold. |
+| `ru_RU-ruslan-medium` | CC BY-NC-SA 4.0 | Non-commercial only. |
+
 ## Licensing status
 
 - Kokoro weights: Apache-2.0. Training data described as permissive. Usable, with the licence notice kept.

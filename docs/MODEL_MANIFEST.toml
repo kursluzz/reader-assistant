@@ -95,6 +95,41 @@ attribution = "SASPEECH dataset (OpenSLR SLR134); Piper voice from the rhasspy/p
 # ---------------------------------------------------------------------------
 
 [[model]]
+name = "Piper ru_RU-denis-medium"
+engine = "piper"
+languages = ["ru"]
+role = "Russian voice candidate (CC0 dataset)"
+downloaded = false
+status = "Candidate. Licence established: dataset is CC0 (Nabu Casa voice-datasets README). Not downloaded; awaiting approval. Listening test still needed."
+source_url = "https://huggingface.co/rhasspy/piper-voices/tree/main/ru/ru_RU/denis/medium"
+dataset = "Nabu Casa voice-datasets, ru_RU/denis"
+dataset_license = "CC0 (public domain)"
+dataset_source = "https://github.com/OHF-Voice/voice-datasets"
+model_card_note = "Finetuned from the rdh base model (nl_BE, CC0) with MRD and SDP. Requires Piper 1.5 or higher."
+
+[[model]]
+name = "Piper ru_RU-dmitri-medium"
+engine = "piper"
+languages = ["ru"]
+role = "Russian voice candidate (CC0 dataset)"
+downloaded = false
+status = "Candidate. Licence established: dataset is CC0. Not downloaded; awaiting approval."
+source_url = "https://huggingface.co/rhasspy/piper-voices/tree/main/ru/ru_RU/dmitri/medium"
+dataset = "Nabu Casa voice-datasets, ru_RU/dmitri"
+dataset_license = "CC0 (public domain)"
+dataset_source = "https://github.com/OHF-Voice/voice-datasets"
+model_card_note = "Finetuned from the hifi_tts_92 base model with MRD and SDP. Requires Piper 1.5 or higher."
+
+[[model]]
+name = "Piper ru_RU-ruslan-medium"
+engine = "piper"
+languages = ["ru"]
+downloaded = false
+status = "Not used. Non-commercial."
+model_license = "CC BY-NC-SA 4.0 (dataset, per model card)"
+dataset_source = "https://ruslan-corpus.github.io/"
+
+[[model]]
 name = "Piper ru_RU-irina-medium"
 engine = "piper"
 languages = ["ru"]
