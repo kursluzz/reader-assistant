@@ -30,6 +30,9 @@ kokoro = [
 piper = [
     "piper-tts==1.8.0",
 ]
+audio = [
+    "sounddevice==0.5.6",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]
@@ -73,7 +76,7 @@ warn_unreachable = true
 
 # Optional engine libraries are imported lazily and may not be installed.
 [[tool.mypy.overrides]]
-module = ["kokoro_onnx", "kokoro_onnx.*", "piper", "piper.*"]
+module = ["kokoro_onnx", "kokoro_onnx.*", "piper", "piper.*", "sounddevice"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

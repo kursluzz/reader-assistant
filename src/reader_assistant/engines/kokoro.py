@@ -18,8 +18,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Final, Protocol
 
-import numpy as np
-
 from reader_assistant.engines.base import AudioBuffer, EngineError, Voice
 
 ENGINE_ID: Final = "kokoro"
@@ -132,5 +130,7 @@ def float_to_pcm16(samples: Any) -> bytes:
 
     Out-of-range values are clipped rather than wrapped.
     """
+    import numpy as np  # provided by the optional "kokoro" extra; imported lazily
+
     array = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
     return (array * 32767.0).astype("<i2").tobytes()

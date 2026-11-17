@@ -1,4 +1,6 @@
-"""Audio subsystem: background playback with play, pause, resume and stop.
+"""Audio playback: a background player with play, pause, resume, stop and volume.
 
-Placeholder: implemented in milestone M3. See docs/ARCHITECTURE.md.
+- ``player``: :class:`AudioPlayer`, the engine-independent playback controller.
+- ``sink``: output sinks. ``SoundDeviceSink`` uses PortAudio through the optional
+  ``audio`` extra; tests use an in-memory fake.
 """

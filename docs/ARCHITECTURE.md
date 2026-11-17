@@ -28,7 +28,9 @@ Dependencies point downwards. Engines, audio and clipboard are injected into the
 | `reader_assistant/engines/registry.py` | Implemented (M2) | `EngineRegistry`: default engine per language, with fallbacks in registration order. Never loads a model. |
 | `reader_assistant/engines/kokoro.py` | Implemented (M2) | Kokoro-82M English adapter via `kokoro-onnx` (CPU). Optional extra `kokoro`. Model factory is injectable for tests. |
 | `reader_assistant/engines/piper.py` | Implemented (M2) | Piper adapter, one instance per voice model. Speed maps to `length_scale = 1 / speed`. Optional extra `piper`. |
-| `reader_assistant/audio/` | Placeholder (M3) | `AudioPlayer`: background playback thread with play, pause, resume, stop, and volume. |
+| `reader_assistant/audio/player.py` | Implemented (M3) | `AudioPlayer`: background playback thread with play, pause, resume, stop, volume, and clean shutdown. Engine-independent. |
+| `reader_assistant/audio/sink.py` | Implemented (M3) | `AudioSink` protocol (the hardware boundary) and `SoundDeviceSink` (PortAudio via the optional `audio` extra). |
+| `reader_assistant/engines/catalog.py` | Implemented (M3) | Default language-to-voice mapping: English, Hebrew and Russian. Builds the registry without loading models. |
 | `reader_assistant/clipboard/` | Placeholder (M4) | `ClipboardSource` protocol with a `wl-paste` implementation for Wayland and a Tk fallback. |
 | `reader_assistant/language/` | Placeholder (M4) | Text normalisation, script detection, and splitting mixed-language text while keeping punctuation. |
 | `reader_assistant/ui/` | Placeholder (M5) | Tkinter window. Runs on the main thread and never blocks on synthesis or playback. |
