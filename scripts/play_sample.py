@@ -5,8 +5,8 @@ This needs the audio extra and the system library libportaudio2:
     sudo apt install libportaudio2
     uv run --extra audio python scripts/play_sample.py SAMPLE.wav
 
-Timeline: play from the start, pause after 1.5 s, resume after 3 s, stop after 5 s.
-Each step is printed so the result can be checked by ear and by the log.
+By default the whole file plays. With --controls it also pauses at 1.5 s, resumes at 3 s and
+stops at 5 s, which is a separate test of those controls.
 """
 
 from __future__ import annotations
@@ -34,6 +34,11 @@ def read_wav(path: Path) -> AudioBuffer:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("wav", type=Path)
+    parser.add_argument(
+        "--controls",
+        action="store_true",
+        help="also exercise pause at 1.5 s, resume at 3 s and stop at 5 s",
+    )
     args = parser.parse_args()
 
     audio = read_wav(args.wav)
@@ -46,17 +51,21 @@ def main() -> int:
         print(f"no audio output: {exc}", file=sys.stderr)
         return 1
 
-    start = time.monotonic()
-    schedule = [(1.5, "pause"), (3.0, "resume"), (5.0, "stop")]
-    for at, action in schedule:
-        time.sleep(max(0.0, at - (time.monotonic() - start)))
-        if action == "pause":
-            player.pause()
-        elif action == "resume":
-            player.resume()
-        else:
-            player.stop()
-        print(f"{action:<7} -> state {player.state.value}")
+    if args.controls:
+        start = time.monotonic()
+        schedule = [(1.5, "pause"), (3.0, "resume"), (5.0, "stop")]
+        for at, action in schedule:
+            time.sleep(max(0.0, at - (time.monotonic() - start)))
+            if action == "pause":
+                player.pause()
+            elif action == "resume":
+                player.resume()
+            else:
+                player.stop()
+            print(f"{action:<7} -> state {player.state.value}")
+    else:
+        finished = player.wait_until_finished(audio.duration_seconds + 10)
+        print("finished" if finished else "timed out")
 
     if player.last_error:
         print(f"error: {player.last_error}", file=sys.stderr)
