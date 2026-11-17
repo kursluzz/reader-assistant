@@ -121,11 +121,16 @@ Quality judgements are yours. The numbers above do not replace them.
 
 ## Licensing status
 
+**Project policy (Product Owner, 2026-11-17):** Reader Assistant is a non-commercial, open-source project. Non-commercial voice licences (for example CC BY-NC) are therefore acceptable, provided attribution and licence notices are kept and documented. Voices with an *unknown* licence are still unresolved and are not used.
+
 - Kokoro weights: Apache-2.0. Training data described as permissive. Usable, with the licence notice kept.
 - `kokoro-onnx`: MIT.
-- Piper Hebrew voice `he_IL-saspeech-medium`: **non-commercial only**, because its training data (SASPEECH, OpenSLR SLR134) is custom non-commercial. Opt-in only in the application, with the licence shown.
+- Piper Hebrew voice `he_IL-saspeech-medium`: custom non-commercial dataset (SASPEECH, OpenSLR SLR134). Acceptable under the project policy, with attribution and the licence shown.
 - `piper-tts`: GPL-3.0-or-later.
-- Piper Russian `ru_RU-irina-medium`: **on hold**. Dataset licence unknown. Not downloaded.
+- Piper Russian `ru_RU-denis-medium` and `ru_RU-dmitri-medium`: CC0 dataset. Usable without restriction. Not downloaded yet.
+- Piper Russian `ru_RU-ruslan-medium`: CC BY-NC-SA 4.0. Acceptable under the project policy. Not downloaded.
+- Piper Russian `ru_RU-irina-medium`: **unresolved**. Dataset licence unknown. Not downloaded.
+- Silero, MMS-TTS: CC BY-NC (non-commercial), acceptable under the project policy if used.
 
 ## Outstanding limitations
 

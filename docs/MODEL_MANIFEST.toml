@@ -5,6 +5,10 @@
 # carry different terms. Verified 2026-11-17 against the sources in `source_url`.
 #
 # Model files are stored outside Git under $XDG_DATA_HOME/reader-assistant/models.
+#
+# Project policy (2026-11-17): Reader Assistant is non-commercial, open-source only.
+# Non-commercial model licences (CC BY-NC and similar) are acceptable here, with
+# attribution and licence notices kept. Unknown licences remain unresolved.
 
 schema_version = 1
 
