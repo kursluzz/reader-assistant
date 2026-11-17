@@ -35,7 +35,7 @@ Dependencies point downwards. Engines, audio and clipboard are injected into the
 | `reader_assistant/language/detect.py` | Implemented (M4) | Script-based language detection for English, Russian and Hebrew, with deterministic tie-breaking. No external dependency. |
 | `reader_assistant/ui/` | Placeholder (M5) | Tkinter window. Runs on the main thread and never blocks on synthesis or playback. |
 | `reader_assistant/ipc/` | Implemented (M4) | Unix socket IPC: `protocol.py` (JSON lines, validation, limits), `paths.py` (socket location), `server.py` (service side, stale-socket handling), `client.py` (CLI side). Knows nothing of the clipboard or engines. |
-| `reader_assistant/limits.py` | Implemented (M4) | Shared size limit for speech text (50,000 bytes). |
+| `reader_assistant/limits.py` | Implemented (M4) | Shared size limit for speech text (5,000 bytes; temporary V1 limit until chunked synthesis in M6). |
 | `reader_assistant/hotkeys/` | Placeholder (M6) | Reserved for shortcut helpers. The shortcut itself is configured in GNOME (see `docs/CLIPBOARD.md`). |
 
 ## Configuration and paths

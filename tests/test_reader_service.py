@@ -5,7 +5,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from fakes import FakeEngine, FakeSink, registry_with, wait_for
+from fakes import FakeEngine, FakeSink, registry_with, tone, wait_for
 from reader_assistant.app.reader_service import ReaderService, SpeechError
 from reader_assistant.audio.player import AudioPlayer
 from reader_assistant.engines.catalog import DEFAULT_VOICE_BY_LANGUAGE
@@ -241,3 +241,82 @@ def test_start_is_idempotent(sink: FakeSink) -> None:
     assert not any(
         t.name == "reader-assistant-speech" and t.is_alive() for t in threading.enumerate()
     )
+
+
+# --- latest request wins: deterministic burst, interruption and concurrency ----
+
+
+def _threads(name: str) -> int:
+    return sum(1 for t in threading.enumerate() if t.name == name and t.is_alive())
+
+
+def test_a_burst_of_requests_keeps_only_the_first_running_and_the_newest_pending(
+    sink: FakeSink,
+) -> None:
+    gate = threading.Event()
+    engine = FakeEngine("kokoro", "en", DEFAULT_VOICE_BY_LANGUAGE["en"], gate=gate)
+    service = ReaderService(registry_with(engine), AudioPlayer(lambda: sink))
+    service.start()
+    try:
+        service.submit("Request one, starts and blocks.")
+        wait_for(lambda: engine.active == 1)
+        for text in ("Request two.", "Request three.", "Request four.", "Request five."):
+            service.submit(text)
+        gate.set()
+
+        wait_for(lambda: len(engine.synthesized) == 2)
+        assert [text for text, _ in engine.synthesized] == [
+            "Request one, starts and blocks.",
+            "Request five.",
+        ]
+    finally:
+        gate.set()
+        service.close()
+
+
+def test_only_one_synthesis_runs_at_a_time_even_under_a_burst(sink: FakeSink) -> None:
+    gate = threading.Event()
+    engine = FakeEngine("kokoro", "en", DEFAULT_VOICE_BY_LANGUAGE["en"], gate=gate)
+    service = ReaderService(registry_with(engine), AudioPlayer(lambda: sink))
+    service.start()
+    try:
+        service.submit("Burst request 0.")
+        wait_for(lambda: engine.active == 1)  # the first request is now synthesising
+        for index in range(1, 6):
+            service.submit(f"Burst request {index}.")
+        assert _threads("reader-assistant-speech") == 1
+        gate.set()
+        wait_for(lambda: len(engine.synthesized) == 2)
+        assert engine.max_active == 1
+    finally:
+        gate.set()
+        service.close()
+
+
+def test_a_new_request_interrupts_playback_already_in_progress() -> None:
+    sinks: list[FakeSink] = []
+
+    def factory() -> FakeSink:
+        sink = FakeSink(write_delay=0.01)
+        sinks.append(sink)
+        return sink
+
+    # 120,000 samples = 5 s of audio, which takes about 0.3 s to play in this fake.
+    engine = FakeEngine("kokoro", "en", DEFAULT_VOICE_BY_LANGUAGE["en"], samples=120_000)
+    player = AudioPlayer(factory)
+    service = ReaderService(registry_with(engine), player)
+    service.start()
+    try:
+        service.submit("First long passage.")
+        wait_for(lambda: len(sinks) == 1 and len(sinks[0].written) > 0)
+        first_full = len(tone(120_000).pcm16)
+
+        service.submit("Second passage replaces it.")
+        wait_for(lambda: len(sinks) == 2 and bool(sinks[1].closed_with_drain))
+
+        assert sinks[0].closed_with_drain == [False], "the first playback was interrupted"
+        assert len(sinks[0].written) < first_full
+        assert sinks[1].written == bytearray(tone(120_000).pcm16)
+        assert _threads("reader-assistant-playback") == 0
+    finally:
+        service.close()

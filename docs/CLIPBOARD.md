@@ -84,7 +84,7 @@ The voice follows the language: English uses Kokoro (`af_heart`), Hebrew uses Pi
 - Only plain text is read (`text/plain`, preferring UTF-8). Images, files and rich text are rejected with a message.
 - The text is passed on unchanged. The application does not trim or rewrite it.
 - Invalid UTF-8 is rejected with a message rather than read with replacement characters.
-- Text larger than 50,000 bytes is rejected.
+- Text longer than **5,000 bytes** is rejected with a message. The limit is enforced while the clipboard is read: the reader stops `wl-paste` after 5,001 bytes, so a very large clipboard is never loaded into memory.
 - `wl-paste` is given 3 seconds. A timeout is reported, never waited on indefinitely.
 - A missing `wl-paste`, an error from it, or an empty clipboard each produce their own message.
 
@@ -102,7 +102,7 @@ Each connection carries one request and one response, each a single line of JSON
 
 Rejection codes: `bad_request`, `too_large`, `empty_text`, `unsupported`, `engine_failed`, `audio_failed`, `shutting_down`, `internal`.
 
-Limits: a message can be at most 512 KiB. Text can be at most 50,000 bytes.
+Limits: a message can be at most 512 KiB. Text can be at most 5,000 bytes.
 
 Only `speak` exists. The service does not expose any other operation over the socket.
 
@@ -112,16 +112,26 @@ A stale socket file (left after a crash, with nothing listening) is removed on s
 
 - `read-clipboard` returns as soon as the service has accepted the text. It does not wait for speech.
 - Synthesis happens after acceptance. The engine loads on first use, and playback starts when the whole text is synthesised.
-- Only the newest request is kept while one is being prepared. A request that arrives while another waits to start replaces it.
-- A new request stops any playback in progress.
 - Engine and audio failures after acceptance are written to the log. They are not shown to you yet; the GUI in M5 will show them.
+
+### Latest request wins
+
+When you copy new text and press the shortcut again, the new text takes priority over text that has not been spoken yet:
+
+- **A new request replaces a pending one.** If the service is still preparing a request, the newest request replaces any older request that has not started. Only one request is ever waiting.
+- **A new request interrupts playback.** Speech in progress stops, and the newest request is synthesised and played.
+- **Only one speech worker runs.** Synthesis never runs in parallel, and only one playback runs at a time. A burst of requests therefore cannot start several workers.
+
+Example: you press the shortcut on text A, which starts speaking. Before A finishes, you copy text B and press the shortcut. A stops and B is spoken. If you press again on text C while B is still being prepared, C replaces B, so B is never spoken.
+
+This is the V1 behaviour. There is no playback queue.
 
 ## 9. Limitations
 
 - Wayland only. Under X11 the clipboard command will not find a Wayland clipboard.
 - Plain text only. The primary selection (middle-click paste) is not read.
 - Language is chosen by script, not meaning (see section 5).
-- Long text takes time before any sound: Kokoro needs about 0.35 seconds to make one second of audio, and speech starts only after the whole text is ready.
+- **Temporary 5,000-byte limit.** Kokoro needs about 0.35 seconds to make one second of audio, and speech starts only after the whole text is ready. The limit keeps the wait short for V1. Chunked synthesis, with sound starting before the whole text is ready, is planned for M6. The limit will be revisited then.
 - The service must be running. Nothing starts it automatically unless you set up the autostart entry.
 - The text is read in full from the clipboard before the size check. The 3-second timeout limits how long this can take.
 - Real-device playback is covered by [AUDIO.md](AUDIO.md); the clipboard path has been run on the development machine with a real Wayland clipboard, but the GNOME shortcut itself was not triggered from the keyboard during M4.

@@ -2,5 +2,7 @@
 
 from typing import Final
 
-# Largest text, in UTF-8 bytes, that the application will accept for speech.
-MAX_TEXT_BYTES: Final = 50_000
+# Largest text, in UTF-8 bytes, accepted for speech. This is a temporary V1 limit:
+# synthesis runs before any sound plays, so long text means a long wait. Chunked
+# synthesis, planned for M6, will allow longer input.
+MAX_TEXT_BYTES: Final = 5_000

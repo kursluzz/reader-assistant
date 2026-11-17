@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import subprocess
+import sys
+import time
 
 import pytest
 
 from fakes import FakeClipboardRunner, completed
-from reader_assistant.clipboard.reader import ClipboardError, read_clipboard_text
+from reader_assistant.clipboard.reader import (
+    ClipboardError,
+    CommandResult,
+    read_clipboard_text,
+    run_command,
+)
 from reader_assistant.limits import MAX_TEXT_BYTES
 
 
@@ -138,8 +145,97 @@ def test_text_at_the_size_limit_is_accepted() -> None:
 def test_oversized_clipboard_is_rejected() -> None:
     runner = _text_runner(b"a" * (MAX_TEXT_BYTES + 1))
 
-    with pytest.raises(ClipboardError, match="too long"):
+    with pytest.raises(ClipboardError, match=f"longer than {MAX_TEXT_BYTES} bytes"):
         read_clipboard_text(runner=runner)
+
+
+def test_limit_is_five_thousand_bytes() -> None:
+    assert MAX_TEXT_BYTES == 5_000
+
+
+def test_size_limit_is_enforced_while_reading_not_after() -> None:
+    runner = _text_runner(b"a" * (MAX_TEXT_BYTES * 100))
+
+    with pytest.raises(ClipboardError, match="longer than"):
+        read_clipboard_text(runner=runner)
+
+    # The paste call was asked for at most limit + 1 bytes, not the whole clipboard.
+    assert runner.max_bytes_requested[-1] == MAX_TEXT_BYTES
+
+
+def test_truncated_output_from_the_runner_is_rejected() -> None:
+    truncated = CommandResult(returncode=-9, stdout=b"a" * 10, stderr=b"", truncated=True)
+    runner = FakeClipboardRunner(
+        listing=completed(b"text/plain\n"),
+        content=truncated,
+    )
+
+    with pytest.raises(ClipboardError, match="longer than"):
+        read_clipboard_text(runner=runner)
+
+
+def test_text_of_exactly_the_limit_in_multibyte_characters_is_accepted() -> None:
+    text = "ש" * (MAX_TEXT_BYTES // 2)  # 2 bytes each, exactly the limit
+    assert len(text.encode("utf-8")) == MAX_TEXT_BYTES
+
+    assert read_clipboard_text(runner=_text_runner(text.encode("utf-8"))) == text
+
+
+def test_one_byte_over_the_limit_in_multibyte_characters_is_rejected() -> None:
+    text = "ש" * (MAX_TEXT_BYTES // 2) + "a"  # one byte over the limit
+
+    with pytest.raises(ClipboardError, match="longer than"):
+        read_clipboard_text(runner=_text_runner(text.encode("utf-8")))
+
+
+# --- the real bounded runner, against real (harmless) child processes ------------
+
+
+def _python(code: str) -> list[str]:
+    return [sys.executable, "-c", code]
+
+
+def test_run_command_returns_small_output_untruncated() -> None:
+    result = run_command(_python("import sys; sys.stdout.write('hello')"), 5.0, 100)
+
+    assert result.returncode == 0
+    assert result.stdout == b"hello"
+    assert result.truncated is False
+
+
+def test_run_command_stops_a_flood_at_the_limit_and_reports_truncation() -> None:
+    started = time.monotonic()
+
+    result = run_command(
+        _python("import sys\nwhile True: sys.stdout.write('x' * 65536)"), 5.0, 1000
+    )
+
+    assert result.truncated is True
+    assert len(result.stdout) == 1001  # limit + 1, never more
+    assert time.monotonic() - started < 4.0  # the process was stopped, not waited for
+
+
+def test_run_command_kills_a_command_that_runs_too_long() -> None:
+    started = time.monotonic()
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_command(_python("import time; time.sleep(30)"), 0.3, 100)
+
+    assert time.monotonic() - started < 5.0
+
+
+def test_run_command_reports_a_missing_executable() -> None:
+    with pytest.raises(FileNotFoundError):
+        run_command(["/definitely/not/a/real/program"], 1.0, 10)
+
+
+def test_run_command_returns_nonzero_exit_and_stderr() -> None:
+    result = run_command(
+        _python("import sys; sys.stderr.write('No selection'); sys.exit(1)"), 5.0, 100
+    )
+
+    assert result.returncode == 1
+    assert result.stderr == b"No selection"
 
 
 def test_custom_executable_is_used() -> None:
