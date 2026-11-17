@@ -415,7 +415,7 @@ class ReaderService:
 
     def _run_command(self, command: str) -> None:
         if command == "stop":
-            self._player.stop()
+            self._player.request_stop()  # non-blocking; the player's worker finishes the stop
         elif command == "pause":
             self._player.pause()
         elif command == "resume":

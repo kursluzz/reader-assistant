@@ -382,11 +382,15 @@ def test_a_replaced_pending_request_is_cancelled_with_its_own_id(
         newest = svc.submit("The newest request.")
         gate.set()
 
-        seen = _collect(svc, lambda events: sum(e.kind is EventKind.FINISHED for e in events) >= 2)
+        seen = _collect(svc, lambda events: any(e.kind is EventKind.FINISHED for e in events))
         cancelled = [e for e in seen if e.kind is EventKind.CANCELLED]
         assert [(e.request_id, e.reason) for e in cancelled] == [(dropped.request_id, "replaced")]
+        # The first request was audible when the newest one's audio was ready, so the newest
+        # interrupted it. Only the newest finishes.
+        stopped = [(e.request_id, e.reason) for e in seen if e.kind is EventKind.STOPPED]
+        assert (first.request_id, "replaced") in stopped
         finished = [e.request_id for e in seen if e.kind is EventKind.FINISHED]
-        assert finished == [first.request_id, newest.request_id]
+        assert finished == [newest.request_id]
     finally:
         gate.set()
         svc.close()

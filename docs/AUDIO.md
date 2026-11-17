@@ -71,3 +71,12 @@ It plays the file, pauses at 1.5 s, resumes at 3 s and stops at 5 s, printing ea
 - Volume is applied in software, at the cost of some CPU per block.
 - Stop latency is up to one block (about 0.17 s at 24 kHz).
 - Real-device playback was not tested on this machine, because `libportaudio2` is not installed. It is tested only through the fake sink.
+
+## Concurrency and lifecycle (M5-2)
+
+- Each playback is a session with its own sink, flags and worker thread. Every decision looks at the session it concerns, so a stale worker cannot affect a newer one.
+- `_lifecycle` serialises `play` and `close`. It is held while the previous playback is joined and the device is opened. Stop, pause, resume and volume never take it.
+- `_cond` guards the session pointer, flags, the stop generation, volume and the last error. It is held only briefly, and never while waiting for a thread or opening a device.
+- `request_stop()` is non-blocking: it marks the playback stopped and returns. `stop()` also waits for every stopped playback to finish its cleanup.
+- The worker closes its sink exactly once, and runs the end callback only when it finished by itself. A stop or a replacement never runs the callback.
+- A stop during device opening cancels that playback, because the stop generation changes.
