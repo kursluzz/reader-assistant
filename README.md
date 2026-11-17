@@ -18,9 +18,11 @@ No cloud speech APIs, no accounts, no text leaves your computer.
 
 **Milestone M2 — TTS engines and benchmark: complete.** English (Kokoro), Hebrew and Russian (Piper) voices are benchmarked and accepted. Details in [docs/TTS_BENCHMARKS.md](docs/TTS_BENCHMARKS.md) and [docs/ENGINES.md](docs/ENGINES.md).
 
-**Milestone M3 — audio playback: implemented, awaiting review.** Background playback with play, pause, resume, stop and volume, plus a language-to-voice mapping for English, Hebrew and Russian. The real sound-card path needs `libportaudio2` (see [docs/AUDIO.md](docs/AUDIO.md)).
+**Milestone M3 — audio playback: accepted.** Background playback with play, pause, resume, stop and volume, plus a language-to-voice mapping for English, Hebrew and Russian. The real sound-card path needs `libportaudio2` (see [docs/AUDIO.md](docs/AUDIO.md)).
 
-Not implemented yet: reading the clipboard and detecting its language (M4), the GUI (M5) and global shortcuts (M6). Running `reader-assistant` today does not read anything aloud; the engines and playback exist but are not yet connected to a user action.
+**Milestone M4 — clipboard and keyboard shortcut: implemented, awaiting review.** Copy text, press the GNOME shortcut, and the service reads it aloud. Setup, protocol and limits are in [docs/CLIPBOARD.md](docs/CLIPBOARD.md).
+
+Not implemented yet: the GUI (M5). Running `reader-assistant serve` and then the shortcut is the only way to use the application today.
 
 Planning documents: [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) (milestones and decisions), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (module responsibilities), [docs/HEBREW_TTS_RESEARCH.md](docs/HEBREW_TTS_RESEARCH.md) and [docs/MODEL_PROPOSALS.md](docs/MODEL_PROPOSALS.md) (voice licences and download proposals).
 
@@ -30,6 +32,7 @@ Requirements:
 
 - Linux with Python 3.12 or newer. [uv](https://docs.astral.sh/uv/) manages the interpreter and dependencies.
 - Tkinter is a system-provided package, not a pip dependency. The uv-managed CPython builds include it. If you use a distribution Python, install its Tk package (for example `sudo apt install python3-tk` on Debian/Ubuntu). This is needed from M5 onwards.
+- Clipboard reading (M4) needs `wl-clipboard`: `sudo apt install wl-clipboard`. See [docs/CLIPBOARD.md](docs/CLIPBOARD.md).
 - Audio playback (from M3) uses PortAudio: `sudo apt install libportaudio2`. See [docs/AUDIO.md](docs/AUDIO.md).
 
 ```bash

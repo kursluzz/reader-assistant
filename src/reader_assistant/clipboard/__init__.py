@@ -1,4 +1,1 @@
-"""Clipboard access behind a ClipboardSource interface (wl-paste, Tk fallback).
-
-Placeholder: implemented in milestone M4. See docs/ARCHITECTURE.md.
-"""
+"""Clipboard access through the Wayland ``wl-paste`` utility (package ``wl-clipboard``)."""

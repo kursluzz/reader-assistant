@@ -1,11 +1,19 @@
 """Command-line entry point: ``reader-assistant`` and ``python -m reader_assistant``.
 
-M1 provides only ``--version``, ``--config``, ``--log-level`` and the ``info``
-command. Reading the clipboard, playback and the GUI arrive in later milestones.
+Commands:
+
+- ``serve``: run the service in the foreground. It owns the engines and the audio
+  player, and listens on a Unix socket for speech requests.
+- ``read-clipboard``: read the clipboard and send its text to the running service.
+  Intended for a GNOME keyboard shortcut. Prints nothing on success.
+- ``info``: show the effective configuration and file locations.
 
 Exit codes:
     0  success
-    2  configuration error (the message is printed to stderr)
+    1  operation failed (empty or unsupported clipboard, rejected text, device or
+       engine error, invalid reply)
+    2  configuration error (message on stderr)
+    3  the service is not running (``read-clipboard`` only)
 """
 
 from __future__ import annotations
@@ -13,13 +21,20 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import signal
 import sys
-from collections.abc import Mapping, Sequence
+import threading
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
+from types import FrameType
 from typing import Final
 
 from reader_assistant import __version__
+from reader_assistant.app.reader_service import ReaderService, SpeechError
+from reader_assistant.audio.player import AudioPlayer
+from reader_assistant.audio.sink import SinkFactory, default_sink
+from reader_assistant.clipboard.reader import ClipboardError, read_clipboard_text
 from reader_assistant.config import (
     LOG_LEVELS,
     AppConfig,
@@ -28,10 +43,20 @@ from reader_assistant.config import (
     load_config,
     resolve_paths,
 )
+from reader_assistant.engines.catalog import default_registry
+from reader_assistant.engines.registry import EngineRegistry
+from reader_assistant.ipc.client import ServiceUnavailableError, send_speak
+from reader_assistant.ipc.paths import SocketPathError, socket_path
+from reader_assistant.ipc.protocol import ProtocolError, Response, SpeakRequest
+from reader_assistant.ipc.server import ServiceAlreadyRunningError, SpeechServer
 from reader_assistant.logging_setup import configure_logging
 
 EXIT_OK: Final = 0
+EXIT_OPERATION_FAILED: Final = 1
 EXIT_CONFIG_ERROR: Final = 2
+EXIT_SERVICE_NOT_RUNNING: Final = 3
+
+ClipboardReader = Callable[[], str]
 
 _log = logging.getLogger("reader_assistant.cli")
 
@@ -60,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="override the configured log level for this run",
     )
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
+    subparsers.add_parser(
+        "serve", help="run the speech service in the foreground (listens on a local socket)"
+    )
+    subparsers.add_parser(
+        "read-clipboard", help="read the clipboard text aloud through the running service"
+    )
     subparsers.add_parser("info", help="show the effective configuration and file locations")
     return parser
 
@@ -69,11 +100,12 @@ def main(
     *,
     env: Mapping[str, str] | None = None,
     home: Path | None = None,
+    clipboard_reader: ClipboardReader | None = None,
 ) -> int:
     """Run the CLI and return the process exit code.
 
-    ``env`` and ``home`` default to the real process environment and home directory;
-    tests pass explicit values so that they never touch the user's files.
+    ``env``, ``home`` and ``clipboard_reader`` default to the real environment, home
+    directory and ``wl-paste``. Tests pass fakes so that nothing outside them is touched.
     """
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -90,15 +122,126 @@ def main(
     if args.log_level is not None:
         config = replace(config, log_level=args.log_level)
 
-    configure_logging(config.log_level, config.log_dir if config.log_to_file else None)
+    # A keyboard shortcut must stay silent on success, so its console shows only warnings.
+    console_level = "WARNING" if args.command == "read-clipboard" else None
+    configure_logging(
+        config.log_level,
+        config.log_dir if config.log_to_file else None,
+        console_level=console_level,
+    )
     _log.info("cli started", extra={"version": __version__, "command": args.command or "help"})
 
     if args.command == "info":
         print(format_info(config, paths))
         return EXIT_OK
+    real_home = home if home is not None else Path.home()
+    if args.command == "serve":
+        return run_service(config, environment, real_home)
+    if args.command == "read-clipboard":
+        reader = clipboard_reader or read_clipboard_text
+        return run_read_clipboard(environment, real_home, reader)
 
     parser.print_help()
     return EXIT_OK
+
+
+def run_service(
+    config: AppConfig,
+    environment: Mapping[str, str],
+    home: Path,
+    *,
+    registry: EngineRegistry | None = None,
+    sink_factory: SinkFactory | None = None,
+) -> int:
+    """Run the speech service in the foreground until SIGINT or SIGTERM.
+
+    ``registry`` and ``sink_factory`` default to the real engines and sound output.
+    Tests pass fakes. The service is the only place that creates them.
+    """
+    try:
+        sock = socket_path(environment, home)
+    except SocketPathError as exc:
+        return _fail(str(exc))
+
+    default_language = "en" if config.default_language == "auto" else config.default_language
+    service = ReaderService(
+        registry if registry is not None else default_registry(config.models_dir),
+        AudioPlayer(sink_factory or default_sink, volume=config.volume),
+        default_language=default_language,
+    )
+    service.start()
+
+    def handle(request: SpeakRequest) -> Response:
+        try:
+            accepted = service.submit(request.text)
+        except SpeechError as exc:
+            raise ProtocolError(exc.code, exc.message) from exc
+        return Response(accepted=True, language=accepted.language, voice=accepted.voice_id)
+
+    try:
+        server = SpeechServer(sock, handle)
+    except ServiceAlreadyRunningError as exc:
+        service.close()
+        return _fail(str(exc))
+    except SocketPathError as exc:
+        service.close()
+        return _fail(str(exc))
+
+    def _on_signal(signum: int, frame: FrameType | None) -> None:
+        # serve_forever() runs on this thread, so shutdown() must run elsewhere.
+        threading.Thread(target=server.shutdown, name="service-shutdown", daemon=True).start()
+
+    signal.signal(signal.SIGINT, _on_signal)
+    signal.signal(signal.SIGTERM, _on_signal)
+
+    _log.info("service listening", extra={"socket": str(sock)})
+    try:
+        with server:
+            server.serve_forever()
+    finally:
+        service.close()
+        _log.info("service stopped")
+    return EXIT_OK
+
+
+def run_read_clipboard(
+    environment: Mapping[str, str],
+    home: Path,
+    reader: ClipboardReader,
+) -> int:
+    """Read the clipboard and hand its text to the running service."""
+    try:
+        text = reader()
+    except ClipboardError as exc:
+        return _fail(str(exc))
+
+    try:
+        sock = socket_path(environment, home)
+    except SocketPathError as exc:
+        return _fail(str(exc))
+
+    try:
+        response = send_speak(sock, SpeakRequest(text=text))
+    except ServiceUnavailableError:
+        return _fail(
+            "The speech service is not running. Start it with: reader-assistant serve",
+            code=EXIT_SERVICE_NOT_RUNNING,
+        )
+    except ProtocolError as exc:
+        return _fail(f"unexpected reply from the service: {exc.message}")
+
+    if response.accepted:
+        _log.info(
+            "clipboard text accepted",
+            extra={"language": response.language, "voice": response.voice},
+        )
+        return EXIT_OK
+    return _fail(response.message)
+
+
+def _fail(message: str, *, code: int = EXIT_OPERATION_FAILED) -> int:
+    print(f"reader-assistant: {message}", file=sys.stderr)
+    return code
 
 
 def format_info(config: AppConfig, paths: AppPaths) -> str:

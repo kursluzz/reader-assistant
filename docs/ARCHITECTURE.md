@@ -23,7 +23,7 @@ Dependencies point downwards. Engines, audio and clipboard are injected into the
 | `reader_assistant/cli.py` | Implemented (M1) | Argument parsing, exit codes, `info` command. Wires configuration and logging together. Contains no business logic. |
 | `reader_assistant/config.py` | Implemented (M1) | XDG path resolution, the `AppConfig` dataclass, loading and validation from TOML, environment and defaults. Pure functions; no global state. |
 | `reader_assistant/logging_setup.py` | Implemented (M1) | Configures the `reader_assistant` logger: stderr plus a rotating file, with `key=value` extras. Idempotent. |
-| `reader_assistant/app/` | Placeholder (M4) | `ReaderService`: reads clipboard, normalises, detects language, selects engine and voice, runs synthesis and playback. |
+| `reader_assistant/app/reader_service.py` | Implemented (M4) | `ReaderService`: validates text, detects language, chooses the engine and voice, and speaks on one worker thread. Owns the registry and the single `AudioPlayer`. |
 | `reader_assistant/engines/base.py` | Implemented (M2) | `TTSEngine` protocol, `Voice`, `AudioBuffer` (mono 16-bit PCM), `EngineError`. No heavy imports. |
 | `reader_assistant/engines/registry.py` | Implemented (M2) | `EngineRegistry`: default engine per language, with fallbacks in registration order. Never loads a model. |
 | `reader_assistant/engines/kokoro.py` | Implemented (M2) | Kokoro-82M English adapter via `kokoro-onnx` (CPU). Optional extra `kokoro`. Model factory is injectable for tests. |
@@ -31,10 +31,12 @@ Dependencies point downwards. Engines, audio and clipboard are injected into the
 | `reader_assistant/audio/player.py` | Implemented (M3) | `AudioPlayer`: background playback thread with play, pause, resume, stop, volume, and clean shutdown. Engine-independent. |
 | `reader_assistant/audio/sink.py` | Implemented (M3) | `AudioSink` protocol (the hardware boundary) and `SoundDeviceSink` (PortAudio via the optional `audio` extra). |
 | `reader_assistant/engines/catalog.py` | Implemented (M3) | Default language-to-voice mapping: English, Hebrew and Russian. Builds the registry without loading models. |
-| `reader_assistant/clipboard/` | Placeholder (M4) | `ClipboardSource` protocol with a `wl-paste` implementation for Wayland and a Tk fallback. |
-| `reader_assistant/language/` | Placeholder (M4) | Text normalisation, script detection, and splitting mixed-language text while keeping punctuation. |
+| `reader_assistant/clipboard/reader.py` | Implemented (M4) | `read_clipboard_text()`: runs `wl-paste`, checks for plain text, size and UTF-8, and raises `ClipboardError` with a user-facing message. The runner is injectable. |
+| `reader_assistant/language/detect.py` | Implemented (M4) | Script-based language detection for English, Russian and Hebrew, with deterministic tie-breaking. No external dependency. |
 | `reader_assistant/ui/` | Placeholder (M5) | Tkinter window. Runs on the main thread and never blocks on synthesis or playback. |
-| `reader_assistant/hotkeys/` | Placeholder (M6) | Local command socket used by desktop shortcuts, plus helpers for desktop-shortcut setup. |
+| `reader_assistant/ipc/` | Implemented (M4) | Unix socket IPC: `protocol.py` (JSON lines, validation, limits), `paths.py` (socket location), `server.py` (service side, stale-socket handling), `client.py` (CLI side). Knows nothing of the clipboard or engines. |
+| `reader_assistant/limits.py` | Implemented (M4) | Shared size limit for speech text (50,000 bytes). |
+| `reader_assistant/hotkeys/` | Placeholder (M6) | Reserved for shortcut helpers. The shortcut itself is configured in GNOME (see `docs/CLIPBOARD.md`). |
 
 ## Configuration and paths
 

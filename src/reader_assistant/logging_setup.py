@@ -45,12 +45,19 @@ class KeyValueFormatter(logging.Formatter):
         return line
 
 
-def configure_logging(level: str, log_dir: Path | None = None) -> logging.Logger:
+def configure_logging(
+    level: str,
+    log_dir: Path | None = None,
+    *,
+    console_level: str | None = None,
+) -> logging.Logger:
     """Configure the application logger. Safe to call more than once.
 
     Previously installed handlers from this module are replaced, so repeated calls
-    do not duplicate output. Logs always go to stderr; if ``log_dir`` is given they
-    also go to a rotating file in that directory.
+    do not duplicate output. Logs go to stderr at ``console_level`` (default: the same
+    as ``level``). If ``log_dir`` is given they also go to a rotating file at ``level``.
+    Commands that run from a keyboard shortcut pass ``console_level="WARNING"`` so they
+    stay silent when they succeed.
 
     Returns:
         The configured ``reader_assistant`` logger.
@@ -65,6 +72,7 @@ def configure_logging(level: str, log_dir: Path | None = None) -> logging.Logger
             handler.close()
 
     console = logging.StreamHandler()
+    console.setLevel(console_level or level)
     console.setFormatter(KeyValueFormatter())
     _mark(console)
     logger.addHandler(console)
