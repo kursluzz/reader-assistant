@@ -55,6 +55,17 @@ uv run python scripts/benchmark_tts.py --engine piper  --out-dir ~/.local/share/
 | 3 | האם תוכל לשלוח לי את המסמך? תודה רבה! | 2.15 | 0.10 | 0.048 |
 | 4 | ד"ר כהן ביקש לבדוק את הנתונים מ-2024. | 2.18 | 0.11 | 0.049 |
 
+### Piper, Russian (`ru_RU-denis-medium`, CC0 dataset)
+
+- Cold start (model load): **0.32 s**
+- Peak RSS: 29 MB before load, 152 MB after load, 259 MB after synthesis
+
+| # | Text | Audio (s) | Synthesis wall (s) | RTF |
+|---|---|---:|---:|---:|
+| 1 | Здравствуйте. Это короткий тест русского голоса, который читает текст в обычном темпе. | 5.90 | 0.30 | 0.051 |
+| 2 | Встреча состоится в четверг в 15:30 в комнате 12. Пожалуйста, принесите отчёт. | 6.34 | 0.32 | 0.051 |
+| 3 | Доктор Смирнов спросил, верны ли данные за 2024 год? Спасибо! | 5.48 | 0.28 | 0.051 |
+
 ### Interpretation
 
 - **Speed is not the constraint.** Both engines are faster than real time on this laptop with CPU only. Kokoro runs at about 0.35 RTF, so a 10-second sentence takes about 3.5 s. Piper runs at about 0.05 RTF.
@@ -88,6 +99,7 @@ Samples are in `~/.local/share/reader-assistant/samples/`:
 
 - English (Kokoro): `kokoro/en_01.wav`, `kokoro/en_02.wav`, `kokoro/en_03.wav`
 - Hebrew (Piper): `piper/he_01.wav`, `piper/he_02.wav`, `piper/he_03.wav`, `piper/he_04.wav`
+- Russian (Piper, Denis): `piper-ru/ru_01.wav`, `piper-ru/ru_02.wav`, `piper-ru/ru_03.wav`
 
 Play them with, for example:
 
@@ -107,14 +119,14 @@ Quality judgements are yours. The numbers above do not replace them.
 
 - **English, Kokoro:** very good.
 - **Hebrew, Piper `he_IL-saspeech-medium`:** medium, "medium well". Usable, not bad. Not yet judged as natural Hebrew.
-- **Russian:** not yet available. The approved voice (`ru_RU-irina-medium`) is on hold because its dataset licence is unknown. See the Russian candidates below.
+- **Russian:** the Denis voice (`ru_RU-denis-medium`, CC0) was downloaded on request and benchmarked. The listening verdict is pending. Irina remains on hold because her dataset licence is unknown.
 - **Speed:** not reported.
 
 #### Russian candidates (checked 2026-11-17)
 
 | Voice | Dataset licence | Status |
 |---|---|---|
-| `ru_RU-denis-medium` | CC0 (Nabu Casa `voice-datasets`, `ru_RU/denis`) | Candidate. Licence established. Not downloaded. |
+| `ru_RU-denis-medium` | CC0 (Nabu Casa `voice-datasets`, `ru_RU/denis`) | Downloaded and benchmarked. Listening pending. |
 | `ru_RU-dmitri-medium` | CC0 (same dataset project) | Candidate. Licence established. Not downloaded. |
 | `ru_RU-irina-medium` | Unknown (RHVoice) | On hold. |
 | `ru_RU-ruslan-medium` | CC BY-NC-SA 4.0 | Non-commercial only. |
@@ -127,7 +139,8 @@ Quality judgements are yours. The numbers above do not replace them.
 - `kokoro-onnx`: MIT.
 - Piper Hebrew voice `he_IL-saspeech-medium`: custom non-commercial dataset (SASPEECH, OpenSLR SLR134). Acceptable under the project policy, with attribution and the licence shown.
 - `piper-tts`: GPL-3.0-or-later.
-- Piper Russian `ru_RU-denis-medium` and `ru_RU-dmitri-medium`: CC0 dataset. Usable without restriction. Not downloaded yet.
+- Piper Russian `ru_RU-denis-medium`: CC0 dataset. Usable without restriction. Downloaded.
+- Piper Russian `ru_RU-dmitri-medium`: CC0 dataset. Usable without restriction. Not downloaded.
 - Piper Russian `ru_RU-ruslan-medium`: CC BY-NC-SA 4.0. Acceptable under the project policy. Not downloaded.
 - Piper Russian `ru_RU-irina-medium`: **unresolved**. Dataset licence unknown. Not downloaded.
 - Silero, MMS-TTS: CC BY-NC (non-commercial), acceptable under the project policy if used.

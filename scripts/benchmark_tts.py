@@ -40,7 +40,14 @@ HEBREW_SENTENCES: Final = (
     'ד"ר כהן ביקש לבדוק את הנתונים מ-2024.',
 )
 
+RUSSIAN_SENTENCES: Final = (
+    "Здравствуйте. Это короткий тест русского голоса, который читает текст в обычном темпе.",
+    "Встреча состоится в четверг в 15:30 в комнате 12. Пожалуйста, принесите отчёт.",
+    "Доктор Смирнов спросил, верны ли данные за 2024 год? Спасибо!",
+)
+
 PIPER_HEBREW_MODEL: Final = Path("piper/he_IL-saspeech-medium/he_IL-saspeech-medium.onnx")
+PIPER_RUSSIAN_MODEL: Final = Path("piper/ru_RU-denis-medium/ru_RU-denis-medium.onnx")
 KOKORO_MODEL: Final = Path("kokoro/kokoro-v1.0.onnx")
 KOKORO_VOICES: Final = Path("kokoro/voices-v1.0.bin")
 KOKORO_VOICE: Final = "af_heart"
@@ -85,16 +92,28 @@ def _build_engine(name: str, models_dir: Path) -> tuple[TTSEngine, str, str]:
 
         piper = PiperEngine(models_dir / PIPER_HEBREW_MODEL, language="he")
         return piper, piper.voice_id, "he"
+    if name == "piper-ru":
+        from reader_assistant.engines.piper import PiperEngine
+
+        piper_ru = PiperEngine(models_dir / PIPER_RUSSIAN_MODEL, language="ru")
+        return piper_ru, piper_ru.voice_id, "ru"
     raise SystemExit(f"unknown engine {name!r}")
 
 
+_SENTENCES_BY_ENGINE: Final = {
+    "kokoro": ENGLISH_SENTENCES,
+    "piper": HEBREW_SENTENCES,
+    "piper-ru": RUSSIAN_SENTENCES,
+}
+
+
 def _sentences_for(engine_name: str) -> tuple[str, ...]:
-    return ENGLISH_SENTENCES if engine_name == "kokoro" else HEBREW_SENTENCES
+    return _SENTENCES_BY_ENGINE[engine_name]
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("--engine", required=True, choices=("kokoro", "piper"))
+    parser.add_argument("--engine", required=True, choices=("kokoro", "piper", "piper-ru"))
     parser.add_argument("--models-dir", type=Path, default=None)
     parser.add_argument("--out-dir", type=Path, required=True)
     args = parser.parse_args(argv)
