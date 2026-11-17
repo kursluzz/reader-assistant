@@ -326,6 +326,16 @@ class ReaderService:
                 volume=self._player.volume,
             )
 
+    def voices(self) -> tuple[tuple[str, str], ...]:
+        """Every (language, voice_id) the registry can speak, sorted. Read-only."""
+        pairs = {
+            (language, item.voice_id)
+            for language in self._registry.languages()
+            for engine in self._registry.engines_for(language)
+            for item in engine.voices()
+        }
+        return tuple(sorted(pairs))
+
     def drain_events(self) -> list[Event]:
         """Return and remove every event so far, oldest first. Thread-safe."""
         events: list[Event] = []

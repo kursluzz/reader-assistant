@@ -621,3 +621,13 @@ def test_status_keeps_the_audible_request_while_a_newer_one_is_prepared() -> Non
     finally:
         gate.set()
         svc.close()
+
+
+def test_voices_lists_every_language_and_voice_sorted(service: ReaderService) -> None:
+    voices = service.voices()
+
+    assert voices == tuple(sorted(voices))
+    assert ("en", ENGLISH_VOICE) in voices
+    assert ("en", EN_EXTRA_VOICE) in voices
+    assert ("he", HEBREW_VOICE) in voices
+    assert ("ru", RUSSIAN_VOICE) in voices

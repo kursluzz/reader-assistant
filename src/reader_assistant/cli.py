@@ -55,6 +55,7 @@ EXIT_OK: Final = 0
 EXIT_OPERATION_FAILED: Final = 1
 EXIT_CONFIG_ERROR: Final = 2
 EXIT_SERVICE_NOT_RUNNING: Final = 3
+_SHUTDOWN_TIMEOUT_SECONDS: Final = 5.0
 
 ClipboardReader = Callable[[], str]
 
@@ -85,8 +86,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="override the configured log level for this run",
     )
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
-    subparsers.add_parser(
+    serve = subparsers.add_parser(
         "serve", help="run the speech service in the foreground (listens on a local socket)"
+    )
+    serve.add_argument(
+        "--gui", action="store_true", help="also open the window, in the same process"
     )
     subparsers.add_parser(
         "read-clipboard", help="read the clipboard text aloud through the running service"
@@ -136,7 +140,7 @@ def main(
         return EXIT_OK
     real_home = home if home is not None else Path.home()
     if args.command == "serve":
-        return run_service(config, environment, real_home)
+        return run_service(config, environment, real_home, gui=args.gui)
     if args.command == "read-clipboard":
         reader = clipboard_reader or read_clipboard_text
         return run_read_clipboard(environment, real_home, reader)
@@ -152,11 +156,17 @@ def run_service(
     *,
     registry: EngineRegistry | None = None,
     sink_factory: SinkFactory | None = None,
+    gui: bool = False,
+    clipboard_reader: Callable[[], str] | None = None,
 ) -> int:
-    """Run the speech service in the foreground until SIGINT or SIGTERM.
+    """Run the speech service in the foreground until it is stopped.
 
-    ``registry`` and ``sink_factory`` default to the real engines and sound output.
-    Tests pass fakes. The service is the only place that creates them.
+    Without ``gui``, the socket server runs on this thread and SIGINT or SIGTERM stops it.
+    With ``gui``, the Tkinter window runs on this (the main) thread, and the socket server
+    runs on a helper thread. Closing the window, or a stop signal, shuts both down.
+
+    ``registry``, ``sink_factory`` and ``clipboard_reader`` default to the real engines,
+    sound output and ``wl-paste``. Tests pass fakes.
     """
     try:
         sock = socket_path(environment, home)
@@ -179,8 +189,12 @@ def run_service(
         return Response(accepted=True, language=accepted.language, voice=accepted.voice_id)
 
     servers: list[SpeechServer] = []
+    stop_requested = threading.Event()
 
     def _on_signal(signum: int, frame: FrameType | None) -> None:
+        if gui:
+            stop_requested.set()  # the window polls this and closes itself
+            return
         if not servers:
             # Stopped before the socket existed: nothing to clean up yet.
             raise SystemExit(EXIT_OK)
@@ -202,13 +216,71 @@ def run_service(
         return _fail(str(exc))
     servers.append(server)
 
-    _log.info("service listening", extra={"socket": str(sock)})
-    try:
-        with server:
-            server.serve_forever()
-    finally:
+    _log.info("service listening", extra={"socket": str(sock), "gui": gui})
+    if not gui:
+        try:
+            with server:
+                server.serve_forever()
+        finally:
+            service.close()
+            _log.info("service stopped")
+        return EXIT_OK
+
+    return _run_with_window(
+        server,
+        service,
+        stop_requested,
+        clipboard_reader or read_clipboard_text,
+    )
+
+
+def _run_with_window(
+    server: SpeechServer,
+    service: ReaderService,
+    stop_requested: threading.Event,
+    clipboard_reader: Callable[[], str],
+) -> int:
+    """Serve the socket on a helper thread and run the window on this thread."""
+    import tkinter as tk
+
+    from reader_assistant.ui.controller import GuiController
+    from reader_assistant.ui.window import GuiWindow
+
+    serve_thread = threading.Thread(
+        target=server.serve_forever, name="reader-assistant-ipc", daemon=True
+    )
+    serve_thread.start()
+
+    def shut_everything_down() -> None:
+        if serve_thread.is_alive():
+            server.shutdown()
+            serve_thread.join(timeout=_SHUTDOWN_TIMEOUT_SECONDS)
+        server.close()
         service.close()
-        _log.info("service stopped")
+
+    def on_close() -> threading.Event:
+        done = threading.Event()
+
+        def run() -> None:
+            try:
+                shut_everything_down()
+            finally:
+                _log.info("service stopped")
+                done.set()
+
+        threading.Thread(target=run, name="reader-assistant-shutdown", daemon=True).start()
+        return done
+
+    try:
+        window = GuiWindow(
+            GuiController(service, clipboard_reader=clipboard_reader),
+            on_close=on_close,
+            stop_requested=stop_requested,
+        )
+    except tk.TclError as exc:
+        shut_everything_down()
+        return _fail(f"the window could not be opened (is a desktop session running?): {exc}")
+    window.run()
     return EXIT_OK
 
 
