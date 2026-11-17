@@ -20,6 +20,7 @@ import logging
 import sys
 import threading
 from array import array
+from collections.abc import Callable
 from typing import Final
 
 from reader_assistant.audio.sink import AudioDeviceError, AudioSink, SinkFactory
@@ -31,6 +32,7 @@ _log = logging.getLogger("reader_assistant.audio")
 # reduce per-call overhead. Must be an even number of bytes (16-bit samples).
 DEFAULT_BLOCK_BYTES: Final = 8192
 _STOP_JOIN_TIMEOUT_SECONDS: Final = 5.0
+OnEnd = Callable[[int, str | None], None]
 
 
 class PlaybackState(enum.Enum):
@@ -115,8 +117,19 @@ class AudioPlayer:
 
     # --- controls ------------------------------------------------------------
 
-    def play(self, audio: AudioBuffer) -> None:
+    def play(
+        self,
+        audio: AudioBuffer,
+        *,
+        token: int = 0,
+        on_end: OnEnd | None = None,
+    ) -> None:
         """Start playing ``audio``, replacing any playback in progress.
+
+        ``on_end(token, error)`` is called from the playback thread when this playback
+        finishes by itself: ``error`` is None after a normal end, or the failure
+        message. It is not called when playback is stopped or replaced, because the
+        caller asked for that. Keep the callback short and thread-safe.
 
         Raises:
             RuntimeError: if the player is closed.
@@ -143,7 +156,7 @@ class AudioPlayer:
             self._last_error = None
         thread = threading.Thread(
             target=self._run,
-            args=(sink, audio.pcm16),
+            args=(sink, audio.pcm16, token, on_end),
             name="reader-assistant-playback",
             daemon=True,
         )
@@ -204,8 +217,15 @@ class AudioPlayer:
 
     # --- worker --------------------------------------------------------------
 
-    def _run(self, sink: AudioSink, pcm16: bytes) -> None:
+    def _run(
+        self,
+        sink: AudioSink,
+        pcm16: bytes,
+        token: int,
+        on_end: OnEnd | None,
+    ) -> None:
         drain = True
+        failure: str | None = None
         try:
             offset = 0
             while offset < len(pcm16):
@@ -221,19 +241,28 @@ class AudioPlayer:
                 offset += self._block_bytes
         except AudioDeviceError as exc:
             drain = False
-            self._record_failure(f"audio output failed: {exc}")
+            failure = f"audio output failed: {exc}"
+            self._record_failure(failure)
         except Exception as exc:
             drain = False
-            self._record_failure(f"unexpected playback error: {exc}")
+            failure = f"unexpected playback error: {exc}"
+            self._record_failure(failure)
             _log.exception("playback worker failed")
         finally:
             try:
                 sink.close(drain=drain)
             except AudioDeviceError as exc:
+                failure = failure or f"audio output did not close cleanly: {exc}"
                 self._record_failure(f"audio output did not close cleanly: {exc}")
             with self._condition:
+                stopped_by_caller = self._stop_requested
                 self._state = PlaybackState.IDLE
                 self._condition.notify_all()
+            if on_end is not None and not stopped_by_caller:
+                try:
+                    on_end(token, failure)
+                except Exception:
+                    _log.exception("playback end callback failed")
 
     def _record_failure(self, message: str) -> None:
         _log.warning(message)

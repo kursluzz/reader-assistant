@@ -63,7 +63,9 @@ class FakeEngine:
         fail_synthesize: bool = False,
         gate: threading.Event | None = None,
         samples: int = 2400,
+        extra_voices: tuple[str, ...] = (),
     ) -> None:
+        self._extra_voices = extra_voices
         self._samples = samples
         self._engine_id = engine_id
         self._language = language
@@ -91,7 +93,8 @@ class FakeEngine:
         return self._loaded
 
     def voices(self) -> tuple[Voice, ...]:
-        return (Voice(self._voice_id, self._language, "fake"),)
+        ids = (self._voice_id, *self._extra_voices)
+        return tuple(Voice(item, self._language, "fake") for item in ids)
 
     def load(self) -> None:
         if self._loaded:

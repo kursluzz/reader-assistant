@@ -67,3 +67,15 @@ Tests never read or write the real home directory; the CLI accepts explicit `env
 - Lint and format: Ruff (`E, W, F, I, B, UP, SIM, N, RUF`, line length 100).
 - Type checking: mypy in strict mode. Chosen over pyright because it is pure Python and runs from the uv environment without a Node.js dependency; `mypy` is configured in `pyproject.toml`.
 - Tests: pytest, with `filterwarnings = error` so resource leaks and deprecations fail the run.
+
+## Service API and events (M5-1)
+
+`ReaderService` is the single owner of engines and the audio player. The CLI, the IPC socket and, from M5, the GUI all talk to it.
+
+- **Requests:** `submit(text, language=None, voice=None)` returns `Accepted(request_id, language, voice_id)`. Without overrides the language is detected from the text. A voice selects its language. Invalid choices raise `SpeechError` with code `unsupported`.
+- **Controls:** `stop()`, `pause()`, `resume()` and `set_volume()` return at once. The worker thread performs every player call, so a stop never races a play.
+- **Status:** `status()` returns an immutable `ServiceStatus` (state, active request, language, voice, per-engine loaded flags, last error, volume).
+- **Events:** `drain_events()` returns `Event` objects in order. Each event carries its `request_id`. Kinds: accepted, cancelled, loading, synthesis started and completed, playback started, paused, resumed, stopped, finished, error and shutdown.
+- **Latest request wins:** a newer request replaces one not yet started. It interrupts playback only once its own audio is ready. The status keeps the audible request until then. A stop cancels a request that is still being prepared, and its result is discarded.
+- **Threading:** one worker thread runs loading, synthesis and all player calls. Playback ends on its own thread and reports back through a callback that checks the request ID. No callback runs on the worker.
+- **Protocol:** the IPC socket is unchanged. It accepts `speak` only.
