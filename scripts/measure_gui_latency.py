@@ -43,7 +43,10 @@ TARGET_BYTES: Final = 5_000
 SENTENCE: Final = "The quick brown fox jumps over the lazy dog, and then it sleeps. "
 POLL_MS: Final = 200
 PHASE_TIMEOUT_S: Final = 900.0
-TERMINAL: Final = frozenset({EventKind.FINISHED, EventKind.ERROR, EventKind.CANCELLED})
+# STOPPED counts as terminal too: a request that is interrupted never reports FINISHED.
+TERMINAL: Final = frozenset(
+    {EventKind.FINISHED, EventKind.ERROR, EventKind.CANCELLED, EventKind.STOPPED}
+)
 
 
 class SilentSink:
@@ -90,11 +93,10 @@ class EventRecorder:
         self.events.extend(drained)
         return drained
 
-    def accepted_after(self, index: int) -> int | None:
-        for event in self.events[index:]:
-            if event.kind is EventKind.ACCEPTED:
-                return event.request_id
-        return None
+    def last_accepted_after(self, index: int) -> int | None:
+        """The newest request accepted since ``index``: the one the phase is waiting for."""
+        accepted = [e.request_id for e in self.events[index:] if e.kind is EventKind.ACCEPTED]
+        return accepted[-1] if accepted else None
 
     def terminal_for(self, request_id: int) -> bool:
         return any(e.request_id == request_id and e.kind in TERMINAL for e in self.events)
@@ -151,7 +153,7 @@ def main() -> int:
 
     def wait_for_phase(index: int, mark: int, started: float) -> None:
         name = phases[index][0]
-        request_id = recorder.accepted_after(mark)
+        request_id = recorder.last_accepted_after(mark)
         finished = request_id is not None and recorder.terminal_for(request_id)
         if finished or clock() - started > PHASE_TIMEOUT_S:
             outcomes.setdefault(name, f"done in {clock() - started:.1f} s")
