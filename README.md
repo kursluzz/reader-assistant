@@ -14,11 +14,13 @@ No cloud speech APIs, no accounts, no text leaves your computer.
 
 ## Development status
 
-**Milestone M1 — project foundation (in progress).** The package installs, has a CLI entry point, reads layered configuration, writes structured logs and is covered by tests and static checks.
+**Milestone M1 — project foundation: complete.** The package installs, has a CLI entry point, reads layered configuration, writes structured logs and is covered by tests and static checks.
 
-Not implemented yet: text-to-speech engines (M2), audio playback (M3), clipboard reading and language detection (M4), the GUI (M5) and global shortcuts (M6). Running `reader-assistant` today does not read anything aloud.
+**Milestone M2 — TTS research: in progress.** Hebrew research and model proposals are written; no models are downloaded yet.
 
-Planning documents: [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) (milestones and decisions) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (module responsibilities).
+Not implemented yet: text-to-speech engines (M2 integration), audio playback (M3), clipboard reading and language detection (M4), the GUI (M5) and global shortcuts (M6). Running `reader-assistant` today does not read anything aloud.
+
+Planning documents: [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) (milestones and decisions), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (module responsibilities), [docs/HEBREW_TTS_RESEARCH.md](docs/HEBREW_TTS_RESEARCH.md) and [docs/MODEL_PROPOSALS.md](docs/MODEL_PROPOSALS.md) (voice licences and download proposals).
 
 ## Developer installation
 
