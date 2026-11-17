@@ -178,6 +178,20 @@ def run_service(
             raise ProtocolError(exc.code, exc.message) from exc
         return Response(accepted=True, language=accepted.language, voice=accepted.voice_id)
 
+    servers: list[SpeechServer] = []
+
+    def _on_signal(signum: int, frame: FrameType | None) -> None:
+        if not servers:
+            # Stopped before the socket existed: nothing to clean up yet.
+            raise SystemExit(EXIT_OK)
+        # serve_forever() runs on this thread, so shutdown() must run elsewhere.
+        threading.Thread(target=servers[0].shutdown, name="service-shutdown", daemon=True).start()
+
+    # Install the handlers before the socket exists, so a stop request can never
+    # slip past them and kill the process without removing the socket.
+    signal.signal(signal.SIGINT, _on_signal)
+    signal.signal(signal.SIGTERM, _on_signal)
+
     try:
         server = SpeechServer(sock, handle)
     except ServiceAlreadyRunningError as exc:
@@ -186,13 +200,7 @@ def run_service(
     except SocketPathError as exc:
         service.close()
         return _fail(str(exc))
-
-    def _on_signal(signum: int, frame: FrameType | None) -> None:
-        # serve_forever() runs on this thread, so shutdown() must run elsewhere.
-        threading.Thread(target=server.shutdown, name="service-shutdown", daemon=True).start()
-
-    signal.signal(signal.SIGINT, _on_signal)
-    signal.signal(signal.SIGTERM, _on_signal)
+    servers.append(server)
 
     _log.info("service listening", extra={"socket": str(sock)})
     try:
