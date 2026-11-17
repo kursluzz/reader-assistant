@@ -1,0 +1,40 @@
+# Local environments
+.venv/
+venv/
+env/
+
+# Python build and cache artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# TTS models and voices are large, user-specific and must never be committed.
+# They are stored under $XDG_DATA_HOME/reader-assistant/models at runtime.
+models/
+*.onnx
+*.onnx.json
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.ckpt
+*.gguf
+
+# Generated audio, logs and local configuration
+*.wav
+*.mp3
+*.log
+local_config.toml
+.env
+
+# Editors and OS files
+.idea/
+.vscode/
+.DS_Store
