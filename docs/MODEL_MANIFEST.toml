@@ -1,0 +1,124 @@
+# Model and library manifest for Reader Assistant.
+#
+# Every downloaded model has its own licence record. Model weights, the dataset they
+# were trained on, and the inference library are listed separately, because each can
+# carry different terms. Verified 2026-11-17 against the sources in `source_url`.
+#
+# Model files are stored outside Git under $XDG_DATA_HOME/reader-assistant/models.
+
+schema_version = 1
+
+# ---------------------------------------------------------------------------
+# Inference libraries (code)
+# ---------------------------------------------------------------------------
+
+[[library]]
+name = "kokoro-onnx"
+version = "0.6.1"
+engine = "kokoro"
+install = "uv sync --extra kokoro"
+license = "MIT"
+license_source = "https://github.com/thewh1teagle/kokoro-onnx (repository licence; not stated in PyPI metadata)"
+notes = "CPU ONNX Runtime. No PyTorch. Pulls in onnxruntime, phonemizer and espeakng-loader."
+
+[[library]]
+name = "piper-tts"
+version = "1.8.0"
+engine = "piper"
+install = "uv sync --extra piper"
+license = "GPL-3.0-or-later"
+license_source = "https://pypi.org/project/piper-tts/ and https://github.com/OHF-Voice/piper1-gpl"
+notes = "Bundles espeak-ng data (GPL). Optional training extras are not installed."
+
+# ---------------------------------------------------------------------------
+# Models (weights and voice packs)
+# ---------------------------------------------------------------------------
+
+[[model]]
+name = "Kokoro-82M ONNX (kokoro-v1.0.onnx)"
+engine = "kokoro"
+languages = ["en"]
+role = "English voice model"
+version = "v1.0 (ONNX export, release model-files-v1.1)"
+local_path = "kokoro/kokoro-v1.0.onnx"
+source_url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.onnx"
+sha256 = "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a"
+size_bytes = 325505369
+downloaded = true
+model_license = "Apache-2.0"
+model_license_source = "https://huggingface.co/hexgrad/Kokoro-82M (model card)"
+dataset = "Not itemised. Model card: trained exclusively on permissive or non-copyrighted audio data and IPA phoneme labels."
+dataset_license = "Not itemised; model card describes the data as permissive"
+usage_restrictions = "None known for the weights under Apache-2.0. Keep the Apache-2.0 notice with redistributed copies."
+attribution = "Kokoro-82M by hexgrad (Apache-2.0). ONNX export by thewh1teagle (kokoro-onnx, MIT)."
+
+[[model]]
+name = "Kokoro voice pack (voices-v1.0.bin)"
+engine = "kokoro"
+languages = ["en"]
+role = "Voice embeddings for the Kokoro model (54 voices, 8 languages in the release; English voices used)"
+version = "v1.0 (release model-files-v1.1)"
+local_path = "kokoro/voices-v1.0.bin"
+source_url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin"
+sha256 = "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+size_bytes = 28214398
+downloaded = true
+model_license = "Apache-2.0"
+model_license_source = "https://huggingface.co/hexgrad/Kokoro-82M (model card)"
+dataset_license = "Same as Kokoro-82M weights (see above)"
+usage_restrictions = "None known beyond the Apache-2.0 notice."
+attribution = "As for Kokoro-82M."
+
+[[model]]
+name = "Piper he_IL-saspeech-medium"
+engine = "piper"
+languages = ["he"]
+role = "Hebrew voice model (one speaker, medium quality, 22,050 Hz)"
+version = "rhasspy/piper-voices, fine-tuned from LibriTTS-R"
+local_path = "piper/he_IL-saspeech-medium/he_IL-saspeech-medium.onnx"
+source_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/he/he_IL/saspeech/medium/he_IL-saspeech-medium.onnx"
+sha256 = "3dc067debc9e782a8a0d095dbb58786648743d406366dcc2aa81009660873b4d"
+size_bytes = 63221984
+downloaded = true
+config_file = "piper/he_IL-saspeech-medium/he_IL-saspeech-medium.onnx.json"
+config_sha256 = "e9800a282a6cf2e44b3ad97f640b38e35ed246dfe070458d13bfcf206befc5bf"
+model_card = "piper/he_IL-saspeech-medium/MODEL_CARD (sha256 78846f04e22c2912a1af332026cff9063b711dd7c9bb7c0c8c505e6c2e984ba6)"
+model_license = "Not stated by the voice; the model card defers to the dataset"
+dataset = "SASPEECH gold standard (OpenSLR SLR134), one speaker, about 4 hours"
+dataset_license = "Custom non-commercial (see README in the dataset archive)"
+dataset_source = "https://www.openslr.org/134/"
+usage_restrictions = "NON-COMMERCIAL ONLY. Opt-in only in the application. Show this licence in the UI before use. Do not redistribute the model as an unrestricted open-source asset."
+attribution = "SASPEECH dataset (OpenSLR SLR134); Piper voice from the rhasspy/piper-voices project."
+
+# ---------------------------------------------------------------------------
+# Models considered but not downloaded
+# ---------------------------------------------------------------------------
+
+[[model]]
+name = "Piper ru_RU-irina-medium"
+engine = "piper"
+languages = ["ru"]
+role = "Russian voice candidate"
+downloaded = false
+status = "ON HOLD. Dataset licence is unknown (model card says 'Unknown'). Not to be downloaded until usage rights are established."
+source_url = "https://huggingface.co/rhasspy/piper-voices/tree/main/ru/ru_RU/irina/medium"
+dataset = "RHVoice"
+dataset_source = "https://github.com/RHVoice/RHVoice (repository licence GPL-2.0; voice-data licence not established)"
+
+[[model]]
+name = "Kokoro-82M PyTorch checkpoint (kokoro-v1_0.pth)"
+engine = "kokoro"
+downloaded = false
+status = "Not needed. The ONNX export is used instead; PyTorch is not installed."
+source_url = "https://huggingface.co/hexgrad/Kokoro-82M"
+
+[[model]]
+name = "facebook/mms-tts-heb"
+engine = "mms"
+languages = ["he"]
+downloaded = false
+status = "Fallback only. Not downloaded."
+model_license = "CC-BY-NC-4.0"
+model_license_source = "https://huggingface.co/api/models/facebook/mms-tts-heb (license tag)"
+usage_restrictions = "NON-COMMERCIAL ONLY."
+size_bytes_safetensors = 145200000

@@ -16,7 +16,7 @@ No cloud speech APIs, no accounts, no text leaves your computer.
 
 **Milestone M1 — project foundation: complete.** The package installs, has a CLI entry point, reads layered configuration, writes structured logs and is covered by tests and static checks.
 
-**Milestone M2 — TTS research: in progress.** Hebrew research and model proposals are written; no models are downloaded yet.
+**Milestone M2 — TTS engines and benchmark: complete, awaiting Product Owner listening test.** Kokoro (English) and Piper (Hebrew) adapters, the common `TTSEngine` interface and a language registry are implemented and benchmarked. Voice quality is pending the listening test in [docs/TTS_BENCHMARKS.md](docs/TTS_BENCHMARKS.md). The Russian voice is on hold because its licence is unknown.
 
 Not implemented yet: text-to-speech engines (M2 integration), audio playback (M3), clipboard reading and language detection (M4), the GUI (M5) and global shortcuts (M6). Running `reader-assistant` today does not read anything aloud.
 
@@ -37,6 +37,16 @@ uv sync                       # creates .venv and installs dev tools
 uv run reader-assistant --version
 uv run reader-assistant info  # shows effective configuration and file locations
 ```
+
+Speech engines are optional extras, so the core installs without them:
+
+```bash
+uv sync --extra kokoro       # English voice (kokoro-onnx, MIT, CPU)
+uv sync --extra piper        # Piper voices (piper-tts, GPL-3.0-or-later)
+uv sync --all-extras         # everything, as used by the test suite and benchmark
+```
+
+Voice model files are downloaded separately and are listed with checksums and licences in [docs/MODEL_MANIFEST.toml](docs/MODEL_MANIFEST.toml). The Hebrew Piper voice is **non-commercial only**.
 
 ### Checks
 
