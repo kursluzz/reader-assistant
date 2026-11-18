@@ -247,3 +247,28 @@ def test_the_service_stopping_during_a_part_is_an_error() -> None:
 
     with pytest.raises(ServiceUnavailableError):
         _wait_for_outcome(events, 7)
+
+
+class _SilentEvents:
+    """Never delivers anything, like a service that lost the request."""
+
+    def __init__(self) -> None:
+        self.reads = 0
+
+    def read(self, timeout: float) -> dict[str, Any] | None:
+        self.reads += 1
+        return None
+
+
+def test_a_part_that_never_finishes_times_out_for_the_whole_wait() -> None:
+    now = [0.0]
+    events = _SilentEvents()
+
+    def fake_clock() -> float:
+        now[0] += 0.5  # time passes with each poll
+        return now[0]
+
+    with pytest.raises(ServiceUnavailableError, match="did not finish the part in time"):
+        _wait_for_outcome(events, 7, timeout=10.0, clock=fake_clock)
+
+    assert 1 <= events.reads <= 30

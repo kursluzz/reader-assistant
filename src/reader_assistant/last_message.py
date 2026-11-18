@@ -42,6 +42,7 @@ STORED_MAX_AGE_SECONDS: Final = 24 * 60 * 60
 SKIP_MARKER_TTL_SECONDS: Final = 300
 _SESSION_ID: Final = re.compile(r"[A-Za-z0-9-]{1,64}")
 _PART_TIMEOUT_SECONDS: Final = 3_600.0
+_POLL_SECONDS: Final = 1.0
 
 Clock = Callable[[], float]
 
@@ -177,10 +178,23 @@ def _speak_parts(path: Path, parts: list[str]) -> ReadResult:
     return ReadResult(parts=len(parts))
 
 
-def _wait_for_outcome(events: Any, request_id: int) -> str:
-    """Return how one part ended: ``finished``, or ``stopped`` when another request took over."""
+def _wait_for_outcome(
+    events: Any,
+    request_id: int,
+    *,
+    timeout: float = _PART_TIMEOUT_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
+) -> str:
+    """Return how one part ended: ``finished``, or ``stopped`` when another request took over.
+
+    The timeout covers the whole wait for this part, not each single read from the socket.
+    """
+    deadline = clock() + timeout
     while True:
-        message = events.read(_PART_TIMEOUT_SECONDS)
+        remaining = deadline - clock()
+        if remaining <= 0:
+            raise ServiceUnavailableError("the speech service did not finish the part in time")
+        message = events.read(min(remaining, _POLL_SECONDS))
         if message is None:
             continue
         if message.get("type") == "closed":
