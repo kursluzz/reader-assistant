@@ -18,7 +18,7 @@ Phases, in order:
 Each phase ends when its own request reaches a terminal event (finished, error or
 cancelled), matched by request ID. Run it on the desktop, with the models installed:
 
-    uv run --extra kokoro --extra audio python scripts/measure_gui_latency.py
+    uv run --extra kokoro --extra audio --extra gui python scripts/measure_gui_latency.py
 
 The report is printed. Nothing is written to the repository.
 """

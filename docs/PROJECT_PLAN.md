@@ -1,3 +1,8 @@
+> **Historical document.** This is the M0 plan, kept as a decision record. Several decisions
+> changed later: the window is PySide6, not Tkinter; the window is a client of a headless
+> service; the protocol gained version 2. For the current design see
+> [ARCHITECTURE.md](ARCHITECTURE.md) and [README.md](../README.md).
+
 # Reader Assistant — Project Plan (M0)
 
 Status: **M0 deliverable, awaiting Technical Lead / Product Owner review.**

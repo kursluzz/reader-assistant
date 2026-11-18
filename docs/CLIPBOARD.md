@@ -32,6 +32,8 @@ The service runs in the foreground, loads voices on first use, and stops on Ctrl
 
 Only one instance can run at a time. A second `serve` reports that another instance is already running and exits with status 1.
 
+To use the window instead, run `uv run reader-assistant serve --gui`. The window connects to the running service, or starts one if none is running. Closing the window does not stop the service. See [ARCHITECTURE.md](ARCHITECTURE.md#gui-as-a-client-m5-4c).
+
 Start it at login (optional): create `~/.config/autostart/reader-assistant.desktop`, replacing `<repo>` with the absolute path to your clone:
 
 ```ini
@@ -60,7 +62,8 @@ The procedure above follows the GNOME Settings layout on Ubuntu. It has not been
 
 | Command | Purpose | Output on success | Exit codes |
 |---|---|---|---|
-| `reader-assistant serve` | Run the service in the foreground. | Log lines on stderr. | `0` after a clean stop; `1` if another instance runs or the socket cannot be created. |
+| `reader-assistant serve` | Run the service in the foreground, headless. | Log lines on stderr. | `0` after a clean stop; `1` if another instance runs or the socket cannot be created. |
+| `reader-assistant serve --gui` | Open the window as a client of the service, starting the service if needed. | None. | `0` when the window closes; `1` if the window's GUI part is not installed or the socket path is unusable. |
 | `reader-assistant read-clipboard` | Read the clipboard and send it to the service. | Nothing. | `0` accepted; `1` clipboard or request failed; `3` service not running. |
 | `reader-assistant info` | Show configuration and paths. | Settings. | `0`. |
 

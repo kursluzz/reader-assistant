@@ -16,8 +16,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
-# Runtime dependencies are intentionally empty in M1.
-# Tkinter is a system-provided package (python3-tk / uv's CPython builds), not a pip dependency.
+# Core runtime dependencies are empty on purpose. Engines, audio and the window are optional
+# extras (kokoro, piper, audio, gui), so a headless install stays small.
 dependencies = []
 
 [project.scripts]

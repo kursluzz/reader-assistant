@@ -70,7 +70,7 @@ It plays the file, pauses at 1.5 s, resumes at 3 s and stops at 5 s, printing ea
 - Pause keeps the audio device open, so there can be a short gap on resume.
 - Volume is applied in software, at the cost of some CPU per block.
 - Stop latency is up to one block (about 0.17 s at 24 kHz).
-- Real-device playback was not tested on this machine, because `libportaudio2` is not installed. It is tested only through the fake sink.
+- Playback was verified on the developer's desktop (PipeWire) in the M5-4C manual tests. Other audio hardware was not tested. The automated tests use a fake sink.
 
 ## Concurrency and lifecycle (M5-2)
 

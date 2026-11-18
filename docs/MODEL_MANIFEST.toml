@@ -91,7 +91,7 @@ model_license = "Not stated by the voice; the model card defers to the dataset"
 dataset = "SASPEECH gold standard (OpenSLR SLR134), one speaker, about 4 hours"
 dataset_license = "Custom non-commercial (see README in the dataset archive)"
 dataset_source = "https://www.openslr.org/134/"
-usage_restrictions = "NON-COMMERCIAL ONLY. Opt-in only in the application. Show this licence in the UI before use. Do not redistribute the model as an unrestricted open-source asset."
+usage_restrictions = "NON-COMMERCIAL ONLY. The application uses this voice automatically for Hebrew text (there is no opt-in). The licence is not yet shown in the application UI. Do not redistribute the model as an unrestricted open-source asset."
 attribution = "SASPEECH dataset (OpenSLR SLR134); Piper voice from the rhasspy/piper-voices project."
 
 # ---------------------------------------------------------------------------

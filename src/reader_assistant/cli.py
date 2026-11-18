@@ -133,8 +133,10 @@ def main(
     if args.log_level is not None:
         config = replace(config, log_level=args.log_level)
 
-    # A keyboard shortcut must stay silent on success, so its console shows only warnings.
-    console_level = "WARNING" if args.command == "read-clipboard" else None
+    # A keyboard shortcut must stay silent on success, and `info` prints only its table,
+    # so their consoles show only warnings.
+    quiet = args.command in ("read-clipboard", "info")
+    console_level = "WARNING" if quiet else None
     configure_logging(
         config.log_level,
         config.log_dir if config.log_to_file else None,
@@ -248,6 +250,17 @@ def run_gui(
     pass fakes.
     """
     try:
+        from PySide6.QtWidgets import QApplication
+
+        from reader_assistant.ui.controller import GuiController
+        from reader_assistant.ui.window import MainWindow
+    except ImportError:
+        return _fail(
+            "the window needs the optional GUI part, which is not installed. "
+            "Install it with: uv sync --extra gui (or: pip install 'reader-assistant[gui]')"
+        )
+
+    try:
         sock = socket_path(environment, home)
     except SocketPathError as exc:
         return _fail(str(exc))
@@ -261,11 +274,6 @@ def run_gui(
     stop_requested = threading.Event()
     _install_stop_signals(lambda signum, frame: stop_requested.set())
     link.start()
-
-    from PySide6.QtWidgets import QApplication
-
-    from reader_assistant.ui.controller import GuiController
-    from reader_assistant.ui.window import MainWindow
 
     app = QApplication.instance() or QApplication([])
     controller = GuiController(link, clipboard_reader=clipboard_reader or read_clipboard_text)

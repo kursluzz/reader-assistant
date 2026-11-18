@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import shutil
 import signal
+import sys
 import threading
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -160,3 +161,29 @@ def test_serve_gui_connects_to_a_running_service_without_starting_another(
     assert "error" not in outcome, outcome.get("error")
     assert code == EXIT_OK
     assert starts == []
+
+
+def test_serve_gui_without_the_gui_extra_says_how_to_install_it_and_starts_nothing(
+    layout: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    env = _env(layout)
+    path = socket_path(env, layout["home"])
+    starts: list[int] = []
+    # A missing optional package makes its import fail, as it does in a clean install.
+    monkeypatch.setitem(sys.modules, "PySide6.QtWidgets", None)
+    config = load_config(paths=resolve_paths(env, layout["home"]), env=env)
+
+    def starter() -> Any:
+        starts.append(1)
+        return _Process()
+
+    code = run_gui(config, env, layout["home"], starter=starter)
+
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "uv sync --extra gui" in err
+    assert "Traceback" not in err
+    assert starts == []
+    assert not path.exists()

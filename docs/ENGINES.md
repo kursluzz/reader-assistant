@@ -29,7 +29,7 @@ The application is GPL-3.0-or-later (see `LICENSE`). Each model has its own lice
 | Piper `he_IL-saspeech-medium` | Non-commercial (dataset: SASPEECH, OpenSLR SLR134, "Custom non-commercial") | Attribution to the SASPEECH dataset and the Piper voice project. Licence shown in the application. |
 | Piper `ru_RU-denis-medium` | CC0 (dataset: Nabu Casa voice-datasets) | Attribution requested by the dataset (not required by CC0) |
 
-Attribution for voices is shown in the application (planned for M5, the GUI).
+Attribution is not yet shown in the application. The notices are in this file, in `docs/MODEL_MANIFEST.toml` and in the README, and the application does not show the Hebrew voice's licence on screen yet.
 
 ## Voice selection
 
