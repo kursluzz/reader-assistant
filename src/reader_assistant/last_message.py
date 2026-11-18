@@ -100,7 +100,8 @@ def _take_skip_marker(directory: Path, session_id: str, now: float) -> bool:
     except (FileNotFoundError, ValueError, OSError):
         return False
     path.unlink(missing_ok=True)
-    return now - written_at <= SKIP_MARKER_TTL_SECONDS
+    # A marker from the future is not trusted: only an age between 0 and the lifetime counts.
+    return 0 <= now - written_at <= SKIP_MARKER_TTL_SECONDS
 
 
 def capture_from_hook(payload: Mapping[str, Any], directory: Path, now: float) -> bool:

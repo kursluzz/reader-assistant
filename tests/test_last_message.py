@@ -285,3 +285,11 @@ def test_the_marker_is_refreshed_when_a_long_reading_ends(workdir: Path) -> None
 
     assert not capture_from_hook(_stop_payload("Done."), directory, now=10_001.0)
     assert load_message(directory, SESSION) == "the real answer"
+
+
+def test_a_marker_dated_in_the_future_is_not_consumed_as_a_valid_skip(workdir: Path) -> None:
+    directory = handoff_dir(_env(workdir), workdir / "home")
+    (directory / f"{SESSION}.skip").write_text("5000.0", encoding="utf-8")
+
+    assert capture_from_hook(_stop_payload("a real answer"), directory, now=1000.0)
+    assert load_message(directory, SESSION) == "a real answer"
