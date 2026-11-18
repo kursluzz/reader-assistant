@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import threading
 import time
+import weakref
 from collections.abc import Callable, Iterator
 
 import pytest
@@ -21,6 +22,7 @@ from reader_assistant.app.reader_service import (
     ServiceState,
     SpeechError,
 )
+from reader_assistant.app.subscriptions import Subscription
 from reader_assistant.audio.player import AudioPlayer
 from reader_assistant.engines.base import AudioBuffer
 from reader_assistant.engines.catalog import ENGLISH_VOICE, HEBREW_VOICE, RUSSIAN_VOICE
@@ -44,8 +46,20 @@ def _engines(**overrides: FakeEngine) -> dict[str, FakeEngine]:
     return engines
 
 
+_LOGS: weakref.WeakKeyDictionary[ReaderService, Subscription[Event]] = weakref.WeakKeyDictionary()
+
+
 def _service(engines: dict[str, FakeEngine], sink_factory: Callable[[], FakeSink]) -> ReaderService:
-    return ReaderService(registry_with(*engines.values()), AudioPlayer(sink_factory))
+    """A service whose events are recorded from the start. Read them with :func:`drain_events`."""
+    svc = ReaderService(registry_with(*engines.values()), AudioPlayer(sink_factory))
+    _, subscription = svc.subscribe(capacity=100_000)
+    _LOGS[svc] = subscription
+    return svc
+
+
+def drain_events(svc: ReaderService) -> list[Event]:
+    """Every event since the last call, oldest first."""
+    return _LOGS[svc].drain()
 
 
 def _collect(service: ReaderService, until: Callable[[list[Event]], bool]) -> list[Event]:
@@ -53,7 +67,7 @@ def _collect(service: ReaderService, until: Callable[[list[Event]], bool]) -> li
     seen: list[Event] = []
     deadline = time.monotonic() + 5.0
     while not until(seen):
-        seen.extend(service.drain_events())
+        seen.extend(drain_events(service))
         if until(seen):
             break
         if time.monotonic() > deadline:
@@ -239,7 +253,7 @@ def test_stop_while_synthesising_cancels_and_plays_nothing() -> None:
         assert cancelled[-1].reason == "user"
         time.sleep(0.1)
         assert sink.opened == 0
-        assert all(e.kind is not EventKind.PLAYBACK_STARTED for e in svc.drain_events())
+        assert all(e.kind is not EventKind.PLAYBACK_STARTED for e in drain_events(svc))
     finally:
         gate.set()
         svc.close()
@@ -502,7 +516,7 @@ def test_close_emits_shutdown_last_and_is_idempotent(sink: FakeSink) -> None:
     svc.close()
     svc.close()
 
-    events = svc.drain_events()
+    events = drain_events(svc)
     assert events[-1].kind is EventKind.SHUTDOWN
     assert sum(e.kind is EventKind.SHUTDOWN for e in events) == 1
     with pytest.raises(SpeechError) as excinfo:
@@ -550,7 +564,7 @@ def test_status_keeps_the_audible_request_while_a_newer_one_is_prepared() -> Non
         time.sleep(0.1)
         assert all(
             e.request_id != second.request_id
-            for e in svc.drain_events()
+            for e in drain_events(svc)
             if e.kind is EventKind.PLAYBACK_STARTED
         )
         assert svc.status().state is ServiceState.IDLE

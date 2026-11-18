@@ -1,10 +1,9 @@
 """The application window (PySide6). It runs on the Qt main (GUI) thread and only draws what
 the controller returns.
 
-Everything that touches widgets happens on the GUI thread. Service events, paste results and
-stop requests reach the window through timers, which Qt fires on that thread. Worker threads
-never update widgets directly. Actions return at once: the service does the work. Closing the
-window starts the shutdown on a helper thread and closes the window when it has finished.
+The window is a client of the background service. It never starts a speech engine or the audio
+player itself. Service messages reach it through a timer, which Qt fires on this thread, so
+worker threads never update widgets. Closing the window disconnects; the service keeps running.
 """
 
 from __future__ import annotations
@@ -30,8 +29,6 @@ from reader_assistant.ui.controller import GuiController
 from reader_assistant.ui.latency import DEFAULT_INTERVAL_MS, LatencyProbe
 
 POLL_MS: Final = 100
-SHUTDOWN_CHECK_MS: Final = 50
-SHUTDOWN_GIVE_UP_S: Final = 10.0
 ERROR_STYLE: Final = "color: #b00020;"
 
 
@@ -42,21 +39,16 @@ class MainWindow(QWidget):
         self,
         controller: GuiController,
         *,
-        on_close: Callable[[], threading.Event],
         stop_requested: threading.Event | None = None,
         probe: LatencyProbe | None = None,
         clock: Callable[[], float] = time.perf_counter,
     ) -> None:
         super().__init__()
         self._controller = controller
-        self._on_close = on_close
         self._stop_requested = stop_requested
         self._probe = probe
         self._clock = clock
         self._closing = False
-        self._may_close = False
-        self._shutdown_done: threading.Event | None = None
-        self._shutdown_started_at = 0.0
 
         self.setWindowTitle("Reader Assistant")
         self.resize(680, 440)
@@ -65,9 +57,6 @@ class MainWindow(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(POLL_MS)
-
-        self._shutdown_timer = QTimer(self)
-        self._shutdown_timer.timeout.connect(self._check_shutdown)
 
         if self._probe is not None:
             self._probe_timer = QTimer(self)
@@ -86,10 +75,13 @@ class MainWindow(QWidget):
         self._paste = QPushButton("Paste")
         self._pause = QPushButton("Pause")
         self._stop = QPushButton("Stop")
+        self._retry = QPushButton("Retry")
         self._read.clicked.connect(self._on_read)
         self._paste.clicked.connect(self._controller.start_paste)
         self._pause.clicked.connect(self._controller.toggle_pause)
         self._stop.clicked.connect(self._controller.stop)
+        self._retry.clicked.connect(self._controller.retry)
+        self._retry.setVisible(False)  # shown only when the service could not be reached
 
         self._volume = QSlider(Qt.Orientation.Horizontal)
         self._volume.setRange(0, 100)
@@ -98,13 +90,14 @@ class MainWindow(QWidget):
         self._volume.valueChanged.connect(self._on_volume)
 
         buttons = QHBoxLayout()
-        for button in (self._read, self._paste, self._pause, self._stop):
+        for button in (self._read, self._paste, self._pause, self._stop, self._retry):
             buttons.addWidget(button)
         buttons.addStretch(1)
         buttons.addWidget(QLabel("Volume"))
         buttons.addWidget(self._volume)
 
-        self._status = QLabel("Idle.")
+        self._status = QLabel("Connecting to the speech service…")
+        self._status.setWordWrap(True)
         self._error = QLabel("")
         self._error.setStyleSheet(ERROR_STYLE)
         self._error.setWordWrap(True)
@@ -128,13 +121,18 @@ class MainWindow(QWidget):
     # --- timers (GUI thread) -------------------------------------------------------
 
     def _tick(self) -> None:
-        """Apply service events and paste results, then redraw. Every POLL_MS."""
+        """Apply service messages and paste results, then redraw. Every POLL_MS."""
         if self._closing:
             return
         if self._stop_requested is not None and self._stop_requested.is_set():
-            self.request_close()
+            self.close()
             return
-        self._controller.drain()
+        self._controller.pump()
+        volume = self._controller.take_volume_sync()
+        if volume is not None:
+            self._volume.blockSignals(True)
+            self._volume.setValue(round(volume))
+            self._volume.blockSignals(False)
         pasted = self._controller.poll_paste()
         if pasted:
             self._text.setPlainText(pasted)
@@ -144,6 +142,7 @@ class MainWindow(QWidget):
         self._pause.setText(state.pause_label)
         self._pause.setEnabled(state.can_pause)
         self._stop.setEnabled(state.can_stop)
+        self._retry.setVisible(state.can_retry)
         self._paste.setEnabled(not state.busy_pasting)
 
     def _probe_tick(self) -> None:
@@ -155,27 +154,8 @@ class MainWindow(QWidget):
     # --- closing -------------------------------------------------------------------
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt's own name
-        if self._may_close:
-            event.accept()
-            return
-        event.ignore()
-        self.request_close()
-
-    def request_close(self) -> None:
-        """Start the shutdown without blocking. The window closes once it has finished."""
-        if self._closing:
-            return
-        self._closing = True
-        self._status.setText("Shutting down…")
-        self._shutdown_done = self._on_close()
-        self._shutdown_started_at = self._clock()
-        self._shutdown_timer.start(SHUTDOWN_CHECK_MS)
-
-    def _check_shutdown(self) -> None:
-        done = self._shutdown_done
-        finished = done is not None and done.is_set()
-        timed_out = self._clock() - self._shutdown_started_at >= SHUTDOWN_GIVE_UP_S
-        if finished or timed_out:
-            self._shutdown_timer.stop()
-            self._may_close = True
-            self.close()
+        """Disconnect from the service and close. The service keeps running."""
+        if not self._closing:
+            self._closing = True
+            self._controller.shutdown()
+        event.accept()

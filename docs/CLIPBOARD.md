@@ -104,7 +104,9 @@ Rejection codes: `bad_request`, `too_large`, `empty_text`, `unsupported`, `engin
 
 Limits: a message can be at most 512 KiB. Text can be at most 5,000 bytes.
 
-Only `speak` exists. The service does not expose any other operation over the socket.
+The shortcut keeps using version 1, which is `speak` only, and it is unchanged. The window uses version 2, which adds status, pause, resume, stop, volume and an event subscription. Version 2 is described in [ARCHITECTURE.md](ARCHITECTURE.md#ipc-protocol-version-2-m5-4c).
+
+A request with an unknown version, or one that is not JSON, gets a version 1 rejection with code `unsupported_version` or `bad_request`. This tells an old or new client why it was refused, instead of closing the connection.
 
 A stale socket file (left after a crash, with nothing listening) is removed on start. A live socket means another instance runs, so the new one refuses to start. A regular file at the socket path is never deleted.
 
@@ -112,7 +114,7 @@ A stale socket file (left after a crash, with nothing listening) is removed on s
 
 - `read-clipboard` returns as soon as the service has accepted the text. It does not wait for speech.
 - Synthesis happens after acceptance. The engine loads on first use, and playback starts when the whole text is synthesised.
-- Engine and audio failures after acceptance are written to the log. They are not shown to you yet; the GUI in M5 will show them.
+- Engine and audio failures after acceptance are written to the log. The window shows them when it is open. The shortcut cannot show them.
 
 ### Latest request wins
 

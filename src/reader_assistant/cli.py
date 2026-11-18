@@ -2,8 +2,10 @@
 
 Commands:
 
-- ``serve``: run the service in the foreground. It owns the engines and the audio
-  player, and listens on a Unix socket for speech requests.
+- ``serve``: run the service in the foreground, headless. It owns the engines and the audio
+  player, and listens on a Unix socket for speech requests and GUI control.
+- ``serve --gui``: open the window as a client of that service. If no service is running, it
+  starts one in a separate process first. Closing the window does not stop the service.
 - ``read-clipboard``: read the clipboard and send its text to the running service.
   Intended for a GNOME keyboard shortcut. Prints nothing on success.
 - ``info``: show the effective configuration and file locations.
@@ -31,6 +33,7 @@ from types import FrameType
 from typing import Final
 
 from reader_assistant import __version__
+from reader_assistant.app.control import ServiceControl
 from reader_assistant.app.reader_service import ReaderService, SpeechError
 from reader_assistant.audio.player import AudioPlayer
 from reader_assistant.audio.sink import SinkFactory, default_sink
@@ -51,6 +54,7 @@ from reader_assistant.ipc.protocol import ProtocolError, Response, SpeakRequest
 from reader_assistant.ipc.server import ServiceAlreadyRunningError, SpeechServer
 from reader_assistant.logging_setup import configure_logging
 from reader_assistant.notify import notify_service_not_running
+from reader_assistant.ui.service_link import ServiceLink, Starter, start_background_service
 
 EXIT_OK: Final = 0
 EXIT_OPERATION_FAILED: Final = 1
@@ -91,7 +95,9 @@ def build_parser() -> argparse.ArgumentParser:
         "serve", help="run the speech service in the foreground (listens on a local socket)"
     )
     serve.add_argument(
-        "--gui", action="store_true", help="also open the window, in the same process"
+        "--gui",
+        action="store_true",
+        help="open the window as a client; start the background service first if needed",
     )
     subparsers.add_parser(
         "read-clipboard", help="read the clipboard text aloud through the running service"
@@ -140,8 +146,15 @@ def main(
         print(format_info(config, paths))
         return EXIT_OK
     real_home = home if home is not None else Path.home()
+    if args.command == "serve" and args.gui:
+        return run_gui(
+            config,
+            environment,
+            real_home,
+            service_args=_service_args(args.config, args.log_level),
+        )
     if args.command == "serve":
-        return run_service(config, environment, real_home, gui=args.gui)
+        return run_service(config, environment, real_home)
     if args.command == "read-clipboard":
         reader = clipboard_reader or read_clipboard_text
         return run_read_clipboard(environment, real_home, reader)
@@ -157,17 +170,14 @@ def run_service(
     *,
     registry: EngineRegistry | None = None,
     sink_factory: SinkFactory | None = None,
-    gui: bool = False,
-    clipboard_reader: Callable[[], str] | None = None,
 ) -> int:
-    """Run the speech service in the foreground until it is stopped.
+    """Run the speech service in the foreground, headless, until it is stopped.
 
-    Without ``gui``, the socket server runs on this thread and SIGINT or SIGTERM stops it.
-    With ``gui``, the Tkinter window runs on this (the main) thread, and the socket server
-    runs on a helper thread. Closing the window, or a stop signal, shuts both down.
+    The socket server runs on this thread. SIGINT or SIGTERM stops it. Engines and the sound
+    output belong to this process only. The GUI never creates them; it connects to this service.
 
-    ``registry``, ``sink_factory`` and ``clipboard_reader`` default to the real engines,
-    sound output and ``wl-paste``. Tests pass fakes.
+    ``registry`` and ``sink_factory`` default to the real engines and sound output.
+    Tests pass fakes.
     """
     try:
         sock = socket_path(environment, home)
@@ -190,12 +200,8 @@ def run_service(
         return Response(accepted=True, language=accepted.language, voice=accepted.voice_id)
 
     servers: list[SpeechServer] = []
-    stop_requested = threading.Event()
 
     def _on_signal(signum: int, frame: FrameType | None) -> None:
-        if gui:
-            stop_requested.set()  # the window polls this and closes itself
-            return
         if not servers:
             # Stopped before the socket existed: nothing to clean up yet.
             raise SystemExit(EXIT_OK)
@@ -204,83 +210,87 @@ def run_service(
 
     # Install the handlers before the socket exists, so a stop request can never
     # slip past them and kill the process without removing the socket.
-    signal.signal(signal.SIGINT, _on_signal)
-    signal.signal(signal.SIGTERM, _on_signal)
+    _install_stop_signals(_on_signal)
 
     try:
-        server = SpeechServer(sock, handle)
-    except ServiceAlreadyRunningError as exc:
-        service.close()
-        return _fail(str(exc))
-    except SocketPathError as exc:
+        server = SpeechServer(sock, handle, control=ServiceControl(service))
+    except (ServiceAlreadyRunningError, SocketPathError) as exc:
         service.close()
         return _fail(str(exc))
     servers.append(server)
 
-    _log.info("service listening", extra={"socket": str(sock), "gui": gui})
-    if not gui:
-        try:
-            with server:
-                server.serve_forever()
-        finally:
-            service.close()
-            _log.info("service stopped")
-        return EXIT_OK
-
-    return _run_with_window(
-        server,
-        service,
-        stop_requested,
-        clipboard_reader or read_clipboard_text,
-    )
+    _log.info("service listening", extra={"socket": str(sock)})
+    try:
+        with server:
+            server.serve_forever()
+    finally:
+        service.close()
+        _log.info("service stopped")
+    return EXIT_OK
 
 
-def _run_with_window(
-    server: SpeechServer,
-    service: ReaderService,
-    stop_requested: threading.Event,
-    clipboard_reader: Callable[[], str],
+def run_gui(
+    config: AppConfig,
+    environment: Mapping[str, str],
+    home: Path,
+    *,
+    service_args: tuple[str, ...] = (),
+    starter: Starter | None = None,
+    clipboard_reader: ClipboardReader | None = None,
 ) -> int:
-    """Serve the socket on a helper thread and run the Qt window on this (the main) thread."""
+    """Open the window as a client of the background service, and return when it is closed.
+
+    The window never owns a speech engine or the sound output. If no service is running, it
+    starts one (``reader-assistant serve`` in a separate process, with ``service_args``), and
+    connects. Closing the window disconnects; the service keeps running.
+
+    ``starter`` replaces the process start, and ``clipboard_reader`` replaces ``wl-paste``. Tests
+    pass fakes.
+    """
+    try:
+        sock = socket_path(environment, home)
+    except SocketPathError as exc:
+        return _fail(str(exc))
+
+    log_hint = f"Its log is in {config.log_dir}." if config.log_to_file else ""
+    link = ServiceLink(
+        sock,
+        starter=starter or (lambda: start_background_service(service_args)),
+        log_hint=log_hint,
+    )
+    stop_requested = threading.Event()
+    _install_stop_signals(lambda signum, frame: stop_requested.set())
+    link.start()
+
     from PySide6.QtWidgets import QApplication
 
     from reader_assistant.ui.controller import GuiController
     from reader_assistant.ui.window import MainWindow
 
-    serve_thread = threading.Thread(
-        target=server.serve_forever, name="reader-assistant-ipc", daemon=True
-    )
-    serve_thread.start()
-
-    def shut_everything_down() -> None:
-        if serve_thread.is_alive():
-            server.shutdown()
-            serve_thread.join(timeout=_SHUTDOWN_TIMEOUT_SECONDS)
-        server.close()
-        service.close()
-
-    def on_close() -> threading.Event:
-        done = threading.Event()
-
-        def run() -> None:
-            try:
-                shut_everything_down()
-            finally:
-                _log.info("service stopped")
-                done.set()
-
-        threading.Thread(target=run, name="reader-assistant-shutdown", daemon=True).start()
-        return done
-
     app = QApplication.instance() or QApplication([])
-    window = MainWindow(
-        GuiController(service, clipboard_reader=clipboard_reader),
-        on_close=on_close,
-        stop_requested=stop_requested,
-    )
+    controller = GuiController(link, clipboard_reader=clipboard_reader or read_clipboard_text)
+    window = MainWindow(controller, stop_requested=stop_requested)
     window.show()
     app.exec()
     return EXIT_OK
+
+
+def _install_stop_signals(handler: Callable[[int, FrameType | None], None]) -> None:
+    """Route SIGINT and SIGTERM to ``handler``. Only possible on the main thread."""
+    if threading.current_thread() is not threading.main_thread():
+        return
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGTERM, handler)
+
+
+def _service_args(config_file: Path | None, log_level: str | None) -> tuple[str, ...]:
+    """The global options a window must pass on when it starts the service itself."""
+    args: list[str] = []
+    if config_file is not None:
+        args += ["--config", str(config_file)]
+    if log_level is not None:
+        args += ["--log-level", log_level]
+    return tuple(args)
 
 
 def run_read_clipboard(

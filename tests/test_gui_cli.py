@@ -1,6 +1,8 @@
-"""`serve --gui` end to end: Qt window, socket, CLI and shutdown in one process.
+"""``serve --gui`` end to end: the window is a client, the service is started only if needed.
 
-Runs offscreen. Engines and the sound output are fakes.
+Runs offscreen. The service is a real socket service with fake engines and a fake sound output.
+The "start" callback stands in for spawning ``reader-assistant serve``: it starts the same service
+in this process, so no real process is spawned.
 """
 
 from __future__ import annotations
@@ -9,19 +11,30 @@ import os
 import shutil
 import signal
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6.QtWidgets")
 
-from fakes import FakeEngine, FakeSink, registry_with, short_dir, wait_for
-from reader_assistant.cli import EXIT_OK, main, run_service
+from fakes import FakeSink, short_dir, wait_for
+from reader_assistant.cli import EXIT_OK, main, run_gui
 from reader_assistant.config import load_config, resolve_paths
-from reader_assistant.engines.catalog import ENGLISH_VOICE, HEBREW_VOICE, RUSSIAN_VOICE
+from reader_assistant.ipc.client import request
 from reader_assistant.ipc.paths import socket_path
+from service_harness import live_service
+
+
+class _Process:
+    """Stands in for the spawned service process: it is still running."""
+
+    returncode: int | None = None
+
+    def poll(self) -> int | None:
+        return self.returncode
 
 
 @pytest.fixture(autouse=True)
@@ -51,50 +64,99 @@ def _env(layout: dict[str, Path]) -> dict[str, str]:
     }
 
 
-def test_serve_gui_accepts_clipboard_text_through_the_socket_and_shuts_down_on_sigterm(
+def _run_window(
     layout: dict[str, Path],
-) -> None:
+    driver: Callable[[], None],
+    *,
+    starter: Callable[[], Any],
+) -> tuple[int, dict[str, object]]:
+    """Run ``serve --gui`` on this thread. ``driver`` runs beside it, then closes the window."""
     env = _env(layout)
-    sink = FakeSink(write_delay=0.0)
-    engines = registry_with(
-        FakeEngine("kokoro", "en", ENGLISH_VOICE, samples=4800),
-        FakeEngine("piper", "he", HEBREW_VOICE, samples=4800),
-        FakeEngine("piper", "ru", RUSSIAN_VOICE, samples=4800),
-    )
     config = load_config(paths=resolve_paths(env, layout["home"]), env=env)
-    sock = socket_path(env, layout["home"])
     outcome: dict[str, object] = {}
 
-    def cli_and_stop() -> None:
+    def drive() -> None:
         try:
-            wait_for(sock.exists)
-            outcome["cli"] = main(
-                ["read-clipboard"],
-                env=env,
-                home=layout["home"],
-                clipboard_reader=lambda: "Good morning, this is English.",
-            )
-            wait_for(lambda: bool(sink.closed_with_drain), timeout=10.0)
+            driver()
         except BaseException as exc:  # reported back to the test thread
             outcome["error"] = exc
         finally:
             os.kill(os.getpid(), signal.SIGTERM)  # closes the window, as a stop signal would
 
-    thread = threading.Thread(target=cli_and_stop, daemon=True)
+    thread = threading.Thread(target=drive, daemon=True)
     thread.start()
-    code = run_service(
-        config,
-        env,
-        layout["home"],
-        registry=engines,
-        sink_factory=lambda: sink,
-        gui=True,
-        clipboard_reader=lambda: "unused",
-    )
+    code = run_gui(config, env, layout["home"], starter=starter)
     thread.join(timeout=30)
+    return code, outcome
+
+
+def test_serve_gui_starts_the_service_speaks_through_it_and_leaves_it_running(
+    layout: dict[str, Path],
+) -> None:
+    env = _env(layout)
+    path = socket_path(env, layout["home"])
+    sink = FakeSink(write_delay=0.0)
+    contexts: list[Any] = []
+    starts: list[int] = []
+
+    def starter() -> _Process:
+        starts.append(1)
+        ctx = live_service(path, sink=sink)
+        ctx.__enter__()
+        contexts.append(ctx)
+        return _Process()
+
+    def driver() -> None:
+        wait_for(path.exists)
+        outcome = main(
+            ["read-clipboard"],
+            env=env,
+            home=layout["home"],
+            clipboard_reader=lambda: "Good morning, this is English.",
+        )
+        assert outcome == EXIT_OK
+        wait_for(lambda: bool(sink.written), timeout=10.0)
+        wait_for(lambda: request(path, "status")["state"] == "idle", timeout=10.0)
+
+    try:
+        code, outcome = _run_window(layout, driver, starter=starter)
+
+        assert "error" not in outcome, outcome.get("error")
+        assert code == EXIT_OK
+        assert starts == [1], "the window started exactly one service"
+        # Closing the window disconnected the window only. The service is still there.
+        assert path.exists()
+        assert request(path, "status")["state"] == "idle"
+    finally:
+        for ctx in contexts:
+            ctx.__exit__(None, None, None)
+
+
+def test_serve_gui_connects_to_a_running_service_without_starting_another(
+    layout: dict[str, Path],
+) -> None:
+    env = _env(layout)
+    path = socket_path(env, layout["home"])
+    starts: list[int] = []
+
+    def starter() -> _Process:  # pragma: no cover - must not run
+        starts.append(1)
+        raise AssertionError("a second service must not be started")
+
+    def driver() -> None:
+        wait_for(path.exists)
+        outcome = main(
+            ["read-clipboard"],
+            env=env,
+            home=layout["home"],
+            clipboard_reader=lambda: "Hello there.",
+        )
+        assert outcome == EXIT_OK
+
+    with live_service(path) as live:
+        code, outcome = _run_window(layout, driver, starter=starter)
+        assert live.service.status().state.value in {"idle", "playing", "synthesizing", "loading"}
 
     assert "error" not in outcome, outcome.get("error")
-    assert outcome.get("cli") == EXIT_OK
     assert code == EXIT_OK
-    assert sink.closed_with_drain == [True], "the spoken text reached the sound output"
-    assert not sock.exists(), "the socket is removed on shutdown"
+    assert starts == []

@@ -1,7 +1,9 @@
 """Measure GUI event-loop latency with the real window, service and Kokoro voice (M5-4).
 
 The window's timer fires every 10 ms. How late it fires is the event-loop latency: a long
-operation on the Tk thread shows up as large lateness. Each phase is named, and its
+operation on the Qt thread shows up as large lateness. The window is a client of the service
+(over the socket), exactly as ``serve --gui`` runs it. The script hosts the service in-process so
+it can see each request's events and choose the sound output per phase. Each phase is named, and its
 samples are reported separately.
 
 Phases, in order:
@@ -26,19 +28,31 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from reader_assistant.app.reader_service import Event, EventKind, ReaderService
+from reader_assistant.app.control import ServiceControl
+from reader_assistant.app.reader_service import (
+    Event,
+    EventKind,
+    ReaderService,
+    SpeechError,
+)
+from reader_assistant.app.subscriptions import Subscription
 from reader_assistant.audio.player import AudioPlayer
 from reader_assistant.audio.sink import AudioSink, default_sink
 from reader_assistant.config import load_config, resolve_paths
 from reader_assistant.engines.catalog import default_registry
+from reader_assistant.ipc.paths import socket_path
+from reader_assistant.ipc.protocol import ProtocolError, Response, SpeakRequest
+from reader_assistant.ipc.server import SpeechServer
 from reader_assistant.ui.controller import GuiController
 from reader_assistant.ui.latency import LatencyProbe
+from reader_assistant.ui.service_link import ServiceLink
 from reader_assistant.ui.window import MainWindow
 
 TARGET_BYTES: Final = 5_000
@@ -82,18 +96,14 @@ def text_of_bytes(size: int) -> str:
 
 
 class EventRecorder:
-    """Keeps a copy of every event the controller drains, so phases can match request IDs."""
+    """Keeps a copy of every service event, so phases can match request IDs."""
 
     def __init__(self, service: ReaderService) -> None:
-        self._service = service
+        self._subscription: Subscription[Event] = service.subscribe(capacity=100_000)[1]
         self.events: list[Event] = []
-        self._drain = service.drain_events
-        service.drain_events = self._record  # type: ignore[method-assign]
 
-    def _record(self) -> list[Event]:
-        drained = self._drain()
-        self.events.extend(drained)
-        return drained
+    def pump(self) -> None:
+        self.events.extend(self._subscription.drain())
 
     def last_accepted_after(self, index: int) -> int | None:
         """The newest request accepted since ``index``: the one the phase is waiting for."""
@@ -115,16 +125,17 @@ def main() -> int:
     )
     service.start()
     recorder = EventRecorder(service)
+    path = socket_path(env, Path.home())
+    server = SpeechServer(path, _speak_v1(service), control=ServiceControl(service))
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    link = ServiceLink(path)
+    link.start()
     clock = time.perf_counter
     probe = LatencyProbe(clock)
-    controller = GuiController(service)
+    controller = GuiController(link)
     app = QApplication.instance() or QApplication([])
-    window = MainWindow(
-        controller,
-        on_close=lambda: _shutdown(service),
-        probe=probe,
-        clock=clock,
-    )
+    window = MainWindow(controller, probe=probe, clock=clock)
 
     phases: list[tuple[str, bool, str, bool]] = [
         ("model_load", True, "Hello.", False),
@@ -136,11 +147,12 @@ def main() -> int:
 
     def start_phase(index: int) -> None:
         if index >= len(phases):
-            window.request_close()
+            window.close()
             return
         name, silent, text, interrupt = phases[index]
         probe.mark(name)
         sink.silent = silent
+        recorder.pump()
         mark = len(recorder.events)
         started = clock()
         message = controller.read(text)
@@ -154,6 +166,7 @@ def main() -> int:
 
     def wait_for_phase(index: int, mark: int, started: float) -> None:
         name = phases[index][0]
+        recorder.pump()
         request_id = recorder.last_accepted_after(mark)
         finished = request_id is not None and recorder.terminal_for(request_id)
         if finished or clock() - started > PHASE_TIMEOUT_S:
@@ -165,6 +178,10 @@ def main() -> int:
     QTimer.singleShot(500, lambda: start_phase(0))
     window.show()
     app.exec()
+    link.close()
+    server.shutdown()
+    server.close()
+    service.close()
     _print_report(probe, outcomes)
     return 0
 
@@ -174,15 +191,17 @@ def _second_request(controller: GuiController, probe: LatencyProbe) -> None:
     controller.read("This second request interrupts the first one.")
 
 
-def _shutdown(service: ReaderService) -> threading.Event:
-    done = threading.Event()
+def _speak_v1(service: ReaderService) -> Callable[[SpeakRequest], Response]:
+    """The version 1 handler, as ``serve`` uses it, so the measurement covers the same path."""
 
-    def run() -> None:
-        service.close()
-        done.set()
+    def handle(request: SpeakRequest) -> Response:
+        try:
+            accepted = service.submit(request.text)
+        except SpeechError as exc:
+            raise ProtocolError(exc.code, exc.message) from exc
+        return Response(accepted=True, language=accepted.language, voice=accepted.voice_id)
 
-    threading.Thread(target=run, daemon=True).start()
-    return done
+    return handle
 
 
 def _print_report(probe: LatencyProbe, outcomes: dict[str, str]) -> None:

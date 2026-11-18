@@ -66,14 +66,17 @@ uv run mypy
 
 ## Running it
 
-Two ways to run the service. Both use the same engines, the same shortcut and the same socket.
+There is one speech service. The background service is the only one that owns the speech engines and the sound output. Everything else talks to it:
 
-- **Background service (headless):** `uv run reader-assistant serve`. It starts at login through the autostart entry, and needs no window.
-- **With the window:** `uv run reader-assistant serve --gui`. Start it by hand. It is not started at login. Closing the window stops the service.
+- **Background service (headless):** `uv run reader-assistant serve`. It starts at login through the autostart entry and needs no window.
+- **Window:** `uv run reader-assistant serve --gui`. The window is a client. If the background service is running, it connects to it. If not, it starts the service in a separate process and then connects. Closing the window disconnects it; the service keeps running. The window never runs a second service.
+- **Shortcut (Win+Shift+O):** reads the clipboard through the running service. It works whether or not the window is open. If no service is running, a desktop notification says how to start it.
 
 Install the window with `uv sync --extra gui` (or `uv sync --all-extras`).
 
 The window reads the text you type or paste. The language is always detected automatically, and the voice is the language's default. There is no language or voice selector.
+
+If the service cannot be reached, the window says so and shows a Retry button after a few automatic attempts.
 
 ## Configuration
 

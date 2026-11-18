@@ -15,8 +15,9 @@ Concurrency model:
   the state under the same lock.
 - Every request has an ID. Events carry it, and the worker drops results for a request
   that was stopped or replaced, so a stale result cannot be taken for the current one.
-- Events are placed on a thread-safe queue in the order they happen, and consumers
-  drain it. No callback runs on the worker thread.
+- Events are numbered in the order they happen and handed to each subscriber's bounded
+  queue (see :mod:`reader_assistant.app.subscriptions`). Publishing never blocks, and no
+  callback runs on the worker thread.
 
 Latest request wins: a new request replaces one not yet started. It also interrupts
 playback once its own audio is ready. Only one request waits at a time.
@@ -26,12 +27,12 @@ from __future__ import annotations
 
 import enum
 import logging
-import queue
 import threading
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final
 
+from reader_assistant.app.subscriptions import DEFAULT_CAPACITY, END_SHUTDOWN, Subscription
 from reader_assistant.audio.player import AudioPlayer, InvalidAudioError
 from reader_assistant.audio.sink import AudioDeviceError
 from reader_assistant.engines.base import AudioBuffer, EngineError, TTSEngine
@@ -89,7 +90,11 @@ class EventKind(enum.Enum):
 
 @dataclass(frozen=True, slots=True)
 class Event:
-    """One thing that happened. ``request_id`` is None only for SHUTDOWN."""
+    """One thing that happened. ``request_id`` is None only for SHUTDOWN.
+
+    ``seq`` numbers the events of this service in order, from 1. It is set when the event
+    is published, so a subscriber can tell old events from new ones.
+    """
 
     kind: EventKind
     request_id: int | None = None
@@ -99,6 +104,7 @@ class Event:
     code: str = ""
     message: str = ""
     duration_seconds: float = 0.0
+    seq: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +130,8 @@ class ServiceStatus:
     engines: tuple[EngineStatus, ...]
     last_error: str | None
     volume: float
+    # Sequence number of the last event published. Events with a higher number are newer.
+    event_seq: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,7 +164,8 @@ class ReaderService:
         self._player = player
         self._default_language = default_language
         self._cond = threading.Condition()
-        self._events: queue.Queue[Event] = queue.Queue()
+        self._subscribers: list[Subscription[Event]] = []
+        self._seq = 0
         self._pending: _Job | None = None
         self._commands: deque[str] = deque()
         self._state = ServiceState.IDLE
@@ -304,29 +313,33 @@ class ReaderService:
     def status(self) -> ServiceStatus:
         """A snapshot of the current state. Thread-safe and immutable."""
         with self._cond:
-            engines = tuple(
-                EngineStatus(language=language, engine_id=engine.engine_id, loaded=engine.is_loaded)
-                for language in sorted(self._registry.languages())
-                for engine in self._registry.engines_for(language)
-            )
-            return ServiceStatus(
-                state=self._state,
-                request_id=self._request_id,
-                language=self._language,
-                voice_id=self._voice_id,
-                engines=engines,
-                last_error=self._last_error,
-                volume=self._player.volume,
-            )
+            return self._snapshot_locked()
 
-    def drain_events(self) -> list[Event]:
-        """Return and remove every event so far, oldest first. Thread-safe."""
-        events: list[Event] = []
-        while True:
-            try:
-                events.append(self._events.get_nowait())
-            except queue.Empty:
-                return events
+    def subscribe(
+        self, capacity: int = DEFAULT_CAPACITY
+    ) -> tuple[ServiceStatus, Subscription[Event]]:
+        """Start receiving events, and get the status they start from.
+
+        The status and the subscription are taken under one lock, so no event is missed or
+        seen twice. Events after the snapshot have a higher ``seq`` than ``event_seq``.
+        A subscriber that falls more than ``capacity`` events behind is ended (see
+        :mod:`reader_assistant.app.subscriptions`). Nothing is replayed.
+        """
+        with self._cond:
+            snapshot = self._snapshot_locked()
+            subscription: Subscription[Event] = Subscription(capacity)
+            if self._closed:
+                subscription.end(END_SHUTDOWN)
+            else:
+                self._subscribers.append(subscription)
+            return snapshot, subscription
+
+    def unsubscribe(self, subscription: Subscription[Event]) -> None:
+        """Stop delivering events to ``subscription``. Idempotent."""
+        subscription.end("closed")
+        with self._cond:
+            if subscription in self._subscribers:
+                self._subscribers.remove(subscription)
 
     @property
     def last_error(self) -> str | None:
@@ -349,7 +362,11 @@ class ReaderService:
         if self._worker.is_alive() and threading.current_thread() is not self._worker:
             self._worker.join(timeout=_WORKER_JOIN_TIMEOUT_SECONDS)
         self._player.close()
-        self._events.put(Event(EventKind.SHUTDOWN))
+        with self._cond:
+            self._emit(Event(EventKind.SHUTDOWN))
+            for subscription in self._subscribers:
+                subscription.end(END_SHUTDOWN)
+            self._subscribers.clear()
 
     # --- validation ----------------------------------------------------------
 
@@ -532,5 +549,25 @@ class ReaderService:
         self._language = None
         self._voice_id = None
 
+    def _snapshot_locked(self) -> ServiceStatus:
+        engines = tuple(
+            EngineStatus(language=language, engine_id=engine.engine_id, loaded=engine.is_loaded)
+            for language in sorted(self._registry.languages())
+            for engine in self._registry.engines_for(language)
+        )
+        return ServiceStatus(
+            state=self._state,
+            request_id=self._request_id,
+            language=self._language,
+            voice_id=self._voice_id,
+            engines=engines,
+            last_error=self._last_error,
+            volume=self._player.volume,
+            event_seq=self._seq,
+        )
+
     def _emit(self, event: Event) -> None:
-        self._events.put(event)
+        """Number the event and hand it to every subscriber. Never blocks."""
+        self._seq += 1
+        stamped = replace(event, seq=self._seq)
+        self._subscribers = [item for item in self._subscribers if item.put(stamped)]
