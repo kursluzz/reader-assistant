@@ -1,6 +1,6 @@
-"""M5-4: `serve --gui` end to end: window, socket, CLI and shutdown in one process.
+"""`serve --gui` end to end: Qt window, socket, CLI and shutdown in one process.
 
-Needs a display (skips otherwise). Engines and the sound output are fakes.
+Runs offscreen. Engines and the sound output are fakes.
 """
 
 from __future__ import annotations
@@ -9,11 +9,13 @@ import os
 import shutil
 import signal
 import threading
-import tkinter as tk
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+pytest.importorskip("PySide6.QtWidgets")
 
 from fakes import FakeEngine, FakeSink, registry_with, short_dir, wait_for
 from reader_assistant.cli import EXIT_OK, main, run_service
@@ -32,11 +34,6 @@ def _restore_signals() -> Iterator[None]:
 
 @pytest.fixture
 def layout() -> Iterator[dict[str, Path]]:
-    try:
-        probe = tk.Tk()
-    except tk.TclError as exc:
-        pytest.skip(f"no display available: {exc}")
-    probe.destroy()
     base = short_dir()
     dirs = {name: base / name for name in ("rt", "state", "data", "cfg", "home")}
     for directory in dirs.values():

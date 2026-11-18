@@ -4,7 +4,7 @@ A timer is scheduled every few milliseconds. If the Tk main thread is blocked, t
 fires late, and the lateness is the latency. The probe records the lateness per phase,
 so that "GUI stayed responsive during X" becomes a number.
 
-The probe has no tkinter dependency. It only stores samples and summarises them.
+The probe has no UI-toolkit dependency. It only stores samples and summarises them.
 """
 
 from __future__ import annotations

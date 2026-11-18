@@ -50,6 +50,7 @@ from reader_assistant.ipc.paths import SocketPathError, socket_path
 from reader_assistant.ipc.protocol import ProtocolError, Response, SpeakRequest
 from reader_assistant.ipc.server import ServiceAlreadyRunningError, SpeechServer
 from reader_assistant.logging_setup import configure_logging
+from reader_assistant.notify import notify_service_not_running
 
 EXIT_OK: Final = 0
 EXIT_OPERATION_FAILED: Final = 1
@@ -240,11 +241,11 @@ def _run_with_window(
     stop_requested: threading.Event,
     clipboard_reader: Callable[[], str],
 ) -> int:
-    """Serve the socket on a helper thread and run the window on this thread."""
-    import tkinter as tk
+    """Serve the socket on a helper thread and run the Qt window on this (the main) thread."""
+    from PySide6.QtWidgets import QApplication
 
     from reader_assistant.ui.controller import GuiController
-    from reader_assistant.ui.window import GuiWindow
+    from reader_assistant.ui.window import MainWindow
 
     serve_thread = threading.Thread(
         target=server.serve_forever, name="reader-assistant-ipc", daemon=True
@@ -271,16 +272,14 @@ def _run_with_window(
         threading.Thread(target=run, name="reader-assistant-shutdown", daemon=True).start()
         return done
 
-    try:
-        window = GuiWindow(
-            GuiController(service, clipboard_reader=clipboard_reader),
-            on_close=on_close,
-            stop_requested=stop_requested,
-        )
-    except tk.TclError as exc:
-        shut_everything_down()
-        return _fail(f"the window could not be opened (is a desktop session running?): {exc}")
-    window.run()
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(
+        GuiController(service, clipboard_reader=clipboard_reader),
+        on_close=on_close,
+        stop_requested=stop_requested,
+    )
+    window.show()
+    app.exec()
     return EXIT_OK
 
 
@@ -302,11 +301,14 @@ def run_read_clipboard(
 
     try:
         response = send_speak(sock, SpeakRequest(text=text))
-    except ServiceUnavailableError:
-        return _fail(
-            "The speech service is not running. Start it with: reader-assistant serve",
-            code=EXIT_SERVICE_NOT_RUNNING,
-        )
+    except ServiceUnavailableError as exc:
+        if exc.not_running:
+            notify_service_not_running()
+            return _fail(
+                "The speech service is not running. Start it with: reader-assistant serve",
+                code=EXIT_SERVICE_NOT_RUNNING,
+            )
+        return _fail(str(exc), code=EXIT_OPERATION_FAILED)
     except ProtocolError as exc:
         return _fail(f"unexpected reply from the service: {exc.message}")
 

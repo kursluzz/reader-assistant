@@ -84,74 +84,10 @@ def service(sink: FakeSink) -> Iterator[ReaderService]:
 # --- explicit language and voice ------------------------------------------------
 
 
-def test_explicit_language_routes_to_that_engine_with_its_default_voice(
-    sink: FakeSink,
-) -> None:
-    engines = _engines()
-    svc = _service(engines, lambda: sink)
-    svc.start()
-    try:
-        accepted = svc.submit("Hello there, this is plain English.", language="ru")
-
-        assert accepted.language == "ru"
-        assert accepted.voice_id == RUSSIAN_VOICE
-        wait_for(lambda: len(engines["ru"].synthesized) == 1)
-        assert engines["ru"].synthesized[0][1] == RUSSIAN_VOICE
-    finally:
-        svc.close()
-
-
-def test_explicit_voice_selects_its_language(sink: FakeSink) -> None:
-    engines = _engines()
-    svc = _service(engines, lambda: sink)
-    svc.start()
-    try:
-        accepted = svc.submit(EN_TEXT, voice=EN_EXTRA_VOICE)
-
-        assert accepted.language == "en"
-        assert accepted.voice_id == EN_EXTRA_VOICE
-        wait_for(lambda: len(engines["en"].synthesized) == 1)
-        assert engines["en"].synthesized[0] == (EN_TEXT, EN_EXTRA_VOICE)
-    finally:
-        svc.close()
-
-
-def test_explicit_language_and_matching_voice_are_accepted(service: ReaderService) -> None:
-    accepted = service.submit(EN_TEXT, language="en", voice=EN_EXTRA_VOICE)
-
-    assert (accepted.language, accepted.voice_id) == ("en", EN_EXTRA_VOICE)
-
-
 def test_detection_is_still_used_when_language_is_omitted(service: ReaderService) -> None:
     assert service.submit(RU_TEXT).language == "ru"
     assert service.submit(HE_TEXT).language == "he"
     assert service.submit(EN_TEXT).language == "en"
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "message"),
-    [
-        ({"language": "fr"}, "unsupported language 'fr'"),
-        ({"voice": "no_such_voice"}, "unknown voice 'no_such_voice'"),
-        ({"language": "ru", "voice": EN_EXTRA_VOICE}, "is for 'en', not 'ru'"),
-        ({"language": "he", "voice": RUSSIAN_VOICE}, "is for 'ru', not 'he'"),
-    ],
-)
-def test_invalid_language_or_voice_is_rejected_with_a_clear_error(
-    service: ReaderService, kwargs: dict[str, str], message: str
-) -> None:
-    with pytest.raises(SpeechError, match=message) as excinfo:
-        service.submit(EN_TEXT, **kwargs)
-
-    assert excinfo.value.code == "unsupported"
-
-
-def test_invalid_selection_queues_nothing(service: ReaderService) -> None:
-    with pytest.raises(SpeechError):
-        service.submit(EN_TEXT, language="fr")
-
-    assert service.status().state is ServiceState.IDLE
-    assert all(event.kind is not EventKind.ACCEPTED for event in service.drain_events())
 
 
 # --- status snapshot --------------------------------------------------------------
@@ -623,11 +559,35 @@ def test_status_keeps_the_audible_request_while_a_newer_one_is_prepared() -> Non
         svc.close()
 
 
-def test_voices_lists_every_language_and_voice_sorted(service: ReaderService) -> None:
-    voices = service.voices()
+# --- automatic language and voice only (M5-4B) ----------------------------------------
 
-    assert voices == tuple(sorted(voices))
-    assert ("en", ENGLISH_VOICE) in voices
-    assert ("en", EN_EXTRA_VOICE) in voices
-    assert ("he", HEBREW_VOICE) in voices
-    assert ("ru", RUSSIAN_VOICE) in voices
+
+@pytest.mark.parametrize(
+    ("text", "language", "voice"),
+    [
+        (EN_TEXT, "en", ENGLISH_VOICE),
+        (RU_TEXT, "ru", RUSSIAN_VOICE),
+        (HE_TEXT, "he", HEBREW_VOICE),
+    ],
+)
+def test_submit_routes_each_language_to_its_engine_and_default_voice(
+    text: str, language: str, voice: str
+) -> None:
+    sink = FakeSink(write_delay=0.0)
+    engines = _engines()
+    svc = _service(engines, lambda: sink)
+    svc.start()
+    try:
+        accepted = svc.submit(text)
+
+        assert (accepted.language, accepted.voice_id) == (language, voice)
+        wait_for(lambda: len(engines[language].synthesized) == 1)
+        assert engines[language].synthesized == [(text, voice)]
+    finally:
+        svc.close()
+
+
+@pytest.mark.parametrize("keyword", ["language", "voice"])
+def test_submit_has_no_language_or_voice_override(service: ReaderService, keyword: str) -> None:
+    with pytest.raises(TypeError):
+        service.submit(EN_TEXT, **{keyword: "en"})

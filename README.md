@@ -31,7 +31,7 @@ Planning documents: [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) (milestones and
 Requirements:
 
 - Linux with Python 3.12 or newer. [uv](https://docs.astral.sh/uv/) manages the interpreter and dependencies.
-- Tkinter is a system-provided package, not a pip dependency. The uv-managed CPython builds include it. If you use a distribution Python, install its Tk package (for example `sudo apt install python3-tk` on Debian/Ubuntu). This is needed from M5 onwards.
+- The window uses PySide6 (Qt), installed with the `gui` extra. It is optional: the background service runs without it.
 - Clipboard reading (M4) needs `wl-clipboard`: `sudo apt install wl-clipboard`. See [docs/CLIPBOARD.md](docs/CLIPBOARD.md).
 - Audio playback (from M3) uses PortAudio: `sudo apt install libportaudio2`. See [docs/AUDIO.md](docs/AUDIO.md).
 
@@ -63,6 +63,17 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy
 ```
+
+## Running it
+
+Two ways to run the service. Both use the same engines, the same shortcut and the same socket.
+
+- **Background service (headless):** `uv run reader-assistant serve`. It starts at login through the autostart entry, and needs no window.
+- **With the window:** `uv run reader-assistant serve --gui`. Start it by hand. It is not started at login. Closing the window stops the service.
+
+Install the window with `uv sync --extra gui` (or `uv sync --all-extras`).
+
+The window reads the text you type or paste. The language is always detected automatically, and the voice is the language's default. There is no language or voice selector.
 
 ## Configuration
 

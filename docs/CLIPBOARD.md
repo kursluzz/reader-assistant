@@ -135,3 +135,9 @@ This is the V1 behaviour. There is no playback queue.
 - The service must be running. Nothing starts it automatically unless you set up the autostart entry.
 - The text is read in full from the clipboard before the size check. The 3-second timeout limits how long this can take.
 - Real-device playback is covered by [AUDIO.md](AUDIO.md); the clipboard path has been run on the development machine with a real Wayland clipboard, but the GNOME shortcut itself was not triggered from the keyboard during M4.
+
+## Service-down notification (M5-4B)
+
+If the shortcut runs while no service is listening, a desktop notification appears: "Reader Assistant is not running", with the start instructions. It is sent with `notify-send`, which is part of `libnotify-bin` on Ubuntu (`sudo apt install libnotify-bin` if missing). A missing `notify-send` is logged and otherwise ignored.
+
+The notification is only for "nothing is listening". Other failures (an unresponsive service, an empty clipboard, an invalid reply) show no notification.

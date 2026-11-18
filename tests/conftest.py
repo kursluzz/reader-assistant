@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 import pytest
 
@@ -25,3 +25,16 @@ def _isolated_app_logger() -> Iterator[None]:
     _close_app_handlers()
     yield
     _close_app_handlers()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_desktop_notifications(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[list[str]]]:
+    """Tests must never show a real notification or start a real notify-send."""
+    calls: list[list[str]] = []
+
+    def record(args: Sequence[str]) -> object:
+        calls.append(list(args))
+        return None
+
+    monkeypatch.setattr("reader_assistant.notify._run", record)
+    yield calls

@@ -182,22 +182,15 @@ class ReaderService:
         if not self._worker.is_alive() and not self._closed:
             self._worker.start()
 
-    def submit(
-        self,
-        text: str,
-        language: str | None = None,
-        voice: str | None = None,
-    ) -> Accepted:
+    def submit(self, text: str) -> Accepted:
         """Queue ``text`` for speech.
 
-        Without ``language`` the language is detected from the text. A ``voice`` picks
-        the language it belongs to. Without ``voice`` the language's default voice is
-        used. Explicit choices are checked against the engine registry.
+        The service alone chooses the language (by detection from the text) and the voice
+        (the language's default). Callers cannot force a language or voice.
 
         Raises:
-            SpeechError: if the text is too large, empty or has no supported letters
-                (when detection is needed), the language or voice is unknown or does not
-                match, or the service is shutting down.
+            SpeechError: if the text is too large, empty or has no English, Russian or Hebrew
+                letters, or the service is shutting down.
         """
         with self._cond:
             if self._closed:
@@ -206,7 +199,7 @@ class ReaderService:
             raise SpeechError(CODE_TOO_LARGE, f"The text is larger than {MAX_TEXT_BYTES} bytes.")
         if not text.strip():
             raise SpeechError(CODE_EMPTY_TEXT, "The text is empty.")
-        chosen_language, chosen_voice = self._resolve(text, language, voice)
+        chosen_language, chosen_voice = self._detect(text)
 
         with self._cond:
             if self._closed:
@@ -326,16 +319,6 @@ class ReaderService:
                 volume=self._player.volume,
             )
 
-    def voices(self) -> tuple[tuple[str, str], ...]:
-        """Every (language, voice_id) the registry can speak, sorted. Read-only."""
-        pairs = {
-            (language, item.voice_id)
-            for language in self._registry.languages()
-            for engine in self._registry.engines_for(language)
-            for item in engine.voices()
-        }
-        return tuple(sorted(pairs))
-
     def drain_events(self) -> list[Event]:
         """Return and remove every event so far, oldest first. Thread-safe."""
         events: list[Event] = []
@@ -357,6 +340,8 @@ class ReaderService:
             if self._closed:
                 return
             self._closed = True
+            # Invalidate any synthesis still running, so it cannot start playback after shutdown.
+            self._generation += 1
             self._pending = None
             self._commands.clear()
             self._clear_active()
@@ -368,37 +353,13 @@ class ReaderService:
 
     # --- validation ----------------------------------------------------------
 
-    def _resolve(self, text: str, language: str | None, voice: str | None) -> tuple[str, str]:
-        supported = sorted(self._registry.languages())
-        if voice is not None:
-            owner = self._language_of_voice(voice)
-            if owner is None:
-                raise SpeechError(CODE_UNSUPPORTED, f"unknown voice {voice!r}")
-            if language is not None and language != owner:
-                raise SpeechError(
-                    CODE_UNSUPPORTED,
-                    f"voice {voice!r} is for {owner!r}, not {language!r}",
-                )
-            return owner, voice
-        if language is not None:
-            if language not in supported:
-                raise SpeechError(
-                    CODE_UNSUPPORTED,
-                    f"unsupported language {language!r}; choose one of: {', '.join(supported)}",
-                )
-            return language, DEFAULT_VOICE_BY_LANGUAGE[language]
+    def _detect(self, text: str) -> tuple[str, str]:
+        """The language detected from ``text``, and that language's default voice."""
         try:
-            detected = detect_language(text, default=self._default_language)
+            language = detect_language(text, default=self._default_language)
         except UnsupportedTextError as exc:
             raise SpeechError(CODE_UNSUPPORTED, str(exc)) from exc
-        return detected, DEFAULT_VOICE_BY_LANGUAGE[detected]
-
-    def _language_of_voice(self, voice: str) -> str | None:
-        for language in sorted(self._registry.languages()):
-            for engine in self._registry.engines_for(language):
-                if any(item.voice_id == voice for item in engine.voices()):
-                    return language
-        return None
+        return language, DEFAULT_VOICE_BY_LANGUAGE[language]
 
     def _engine_for(self, language: str, voice_id: str) -> TTSEngine:
         for engine in self._registry.engines_for(language):

@@ -22,7 +22,7 @@ from reader_assistant.app.reader_service import (
 from reader_assistant.audio.player import AudioPlayer
 from reader_assistant.clipboard.reader import ClipboardError
 from reader_assistant.engines.catalog import ENGLISH_VOICE, HEBREW_VOICE, RUSSIAN_VOICE
-from reader_assistant.ui.controller import AUTO, DEFAULT_VOICE_LABEL, GuiController
+from reader_assistant.ui.controller import GuiController
 from reader_assistant.ui.latency import LatencyProbe
 
 EN_TEXT = "Good morning, this is English."
@@ -58,16 +58,16 @@ class StubService:
     events: list[Event] = field(default_factory=list)
     state: ServiceState = ServiceState.IDLE
     last_error: str | None = None
-    submitted: list[tuple[str, str | None, str | None]] = field(default_factory=list)
+    submitted: list[str] = field(default_factory=list)
     paused: list[str] = field(default_factory=list)
     volume: float = 1.0
 
-    def submit(self, text: str, language: str | None = None, voice: str | None = None) -> Accepted:
-        self.submitted.append((text, language, voice))
+    def submit(self, text: str) -> Accepted:
+        self.submitted.append(text)
         return Accepted(
             request_id=len(self.submitted),
-            language=language or "en",
-            voice_id=voice or ENGLISH_VOICE,
+            language="en",
+            voice_id=ENGLISH_VOICE,
         )
 
     def drain_events(self) -> list[Event]:
@@ -100,9 +100,6 @@ class StubService:
     def set_volume(self, volume: float) -> None:
         self.volume = volume
 
-    def voices(self) -> tuple[tuple[str, str], ...]:
-        return (("en", ENGLISH_VOICE), ("he", HEBREW_VOICE), ("ru", RUSSIAN_VOICE))
-
 
 def _stub_controller(stub: StubService, clipboard: object = None) -> GuiController:
     reader = clipboard if callable(clipboard) else (lambda: "unused")
@@ -112,38 +109,20 @@ def _stub_controller(stub: StubService, clipboard: object = None) -> GuiControll
 # --- reading -----------------------------------------------------------------------
 
 
-def test_read_with_auto_language_passes_no_language_to_the_service(service: ReaderService) -> None:
+def test_read_passes_only_the_text_so_the_service_decides_the_language(
+    service: ReaderService,
+) -> None:
     stub = StubService()
     controller = _stub_controller(stub)
 
-    assert controller.read(EN_TEXT, AUTO, DEFAULT_VOICE_LABEL) == ""
-    assert stub.submitted == [(EN_TEXT, None, None)]
-
-
-def test_read_with_explicit_language_and_voice_passes_both(service: ReaderService) -> None:
-    stub = StubService()
-    controller = _stub_controller(stub)
-
-    controller.read("Привет", "ru", RUSSIAN_VOICE)
-
-    assert stub.submitted == [("Привет", "ru", RUSSIAN_VOICE)]
-
-
-def test_invalid_selection_returns_the_message_to_show() -> None:
-    controller = GuiController(_real_service())
-    try:
-        message = controller.read(EN_TEXT, "fr", DEFAULT_VOICE_LABEL)
-
-        assert "unsupported language 'fr'" in message
-        assert controller.display_state().error == message
-    finally:
-        controller._service.close()
+    assert controller.read(EN_TEXT) == ""
+    assert stub.submitted == [EN_TEXT]
 
 
 def test_empty_text_is_rejected_with_a_message() -> None:
     controller = GuiController(_real_service())
     try:
-        assert controller.read("   ", AUTO, DEFAULT_VOICE_LABEL) == "The text is empty."
+        assert controller.read("   ") == "The text is empty."
     finally:
         controller._service.close()
 
@@ -153,7 +132,7 @@ def test_real_service_reads_english_and_reports_idle_after_speech() -> None:
     svc = _real_service(sink)
     controller = GuiController(svc)
     try:
-        assert controller.read(EN_TEXT, "en", DEFAULT_VOICE_LABEL) == ""
+        assert controller.read(EN_TEXT) == ""
         wait_for(lambda: bool(sink.closed_with_drain))
         controller.drain()
 
@@ -208,22 +187,13 @@ def test_stop_is_forwarded() -> None:
 # --- voice menu -------------------------------------------------------------------
 
 
-def test_voice_menu_is_default_only_for_auto_and_lists_voices_per_language() -> None:
-    controller = _stub_controller(StubService())
-
-    assert controller.voices_for(AUTO) == (DEFAULT_VOICE_LABEL,)
-    assert controller.voices_for("en") == (DEFAULT_VOICE_LABEL, ENGLISH_VOICE)
-    assert controller.voices_for("he") == (DEFAULT_VOICE_LABEL, HEBREW_VOICE)
-    assert controller.voices_for("fr") == (DEFAULT_VOICE_LABEL,)
-
-
 # --- events and stale errors ---------------------------------------------------------
 
 
 def test_error_for_the_latest_request_is_shown() -> None:
     stub = StubService()
     controller = _stub_controller(stub)
-    controller.read(EN_TEXT, AUTO, DEFAULT_VOICE_LABEL)  # request 1
+    controller.read(EN_TEXT)  # request 1
     stub.events = [Event(EventKind.ERROR, request_id=1, code="engine_failed", message="boom")]
 
     controller.drain()
@@ -234,8 +204,8 @@ def test_error_for_the_latest_request_is_shown() -> None:
 def test_stale_error_from_an_older_request_is_dropped() -> None:
     stub = StubService()
     controller = _stub_controller(stub)
-    controller.read("first", AUTO, DEFAULT_VOICE_LABEL)  # request 1
-    controller.read("second", AUTO, DEFAULT_VOICE_LABEL)  # request 2 is now the latest
+    controller.read("first")  # request 1
+    controller.read("second")  # request 2 is now the latest
     stub.events = [Event(EventKind.ERROR, request_id=1, code="engine_failed", message="old boom")]
 
     controller.drain()
@@ -246,7 +216,7 @@ def test_stale_error_from_an_older_request_is_dropped() -> None:
 def test_accepted_event_from_another_client_clears_the_old_error() -> None:
     stub = StubService()
     controller = _stub_controller(stub)
-    controller.read(EN_TEXT, AUTO, DEFAULT_VOICE_LABEL)
+    controller.read(EN_TEXT)
     stub.events = [Event(EventKind.ERROR, request_id=1, code="engine_failed", message="boom")]
     controller.drain()
     stub.events = [Event(EventKind.ACCEPTED, request_id=7, language="en", voice_id=ENGLISH_VOICE)]

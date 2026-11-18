@@ -33,7 +33,10 @@ Dependencies point downwards. Engines, audio and clipboard are injected into the
 | `reader_assistant/engines/catalog.py` | Implemented (M3) | Default language-to-voice mapping: English, Hebrew and Russian. Builds the registry without loading models. |
 | `reader_assistant/clipboard/reader.py` | Implemented (M4) | `read_clipboard_text()`: runs `wl-paste`, checks for plain text, size and UTF-8, and raises `ClipboardError` with a user-facing message. The runner is injectable. |
 | `reader_assistant/language/detect.py` | Implemented (M4) | Script-based language detection for English, Russian and Hebrew, with deterministic tie-breaking. No external dependency. |
-| `reader_assistant/ui/` | Placeholder (M5) | Tkinter window. Runs on the main thread and never blocks on synthesis or playback. |
+| `reader_assistant/ui/window.py` | Implemented (M5-4B) | PySide6 window (optional `gui` extra). Runs on the Qt main thread. Service events, paste results and stop requests reach it through timers on that thread. |
+| `reader_assistant/ui/controller.py` | Implemented (M5-4) | Framework-free GUI logic: actions to service calls, service state to display state, latest-request error filtering. No Qt import. |
+| `reader_assistant/ui/latency.py` | Implemented (M5-4) | Event-loop latency probe. Framework-free. |
+| `reader_assistant/notify.py` | Implemented (M5-4B) | Service-down desktop notification through `notify-send`. Used only by the shortcut's CLI path. |
 | `reader_assistant/ipc/` | Implemented (M4) | Unix socket IPC: `protocol.py` (JSON lines, validation, limits), `paths.py` (socket location), `server.py` (service side, stale-socket handling), `client.py` (CLI side). Knows nothing of the clipboard or engines. |
 | `reader_assistant/limits.py` | Implemented (M4) | Shared size limit for speech text (5,000 bytes; temporary V1 limit until chunked synthesis in M6). |
 | `reader_assistant/hotkeys/` | Placeholder (M6) | Reserved for shortcut helpers. The shortcut itself is configured in GNOME (see `docs/CLIPBOARD.md`). |
@@ -79,3 +82,11 @@ Tests never read or write the real home directory; the CLI accepts explicit `env
 - **Latest request wins:** a newer request replaces one not yet started. It interrupts playback only once its own audio is ready. The status keeps the audible request until then. A stop cancels a request that is still being prepared, and its result is discarded.
 - **Threading:** one worker thread runs loading, synthesis and all player calls. Playback ends on its own thread and reports back through a callback that checks the request ID. No callback runs on the worker.
 - **Protocol:** the IPC socket is unchanged. It accepts `speak` only.
+
+## GUI (M5-4B)
+
+- Launch: `reader-assistant serve --gui` starts the service and the window in one process. `reader-assistant serve` starts the service alone. Login autostart runs `serve` only, so the window never opens at login.
+- Threads: the Qt event loop runs on the main thread. The socket server runs on a helper thread. Service workers never touch widgets. The window polls events, paste results and stop requests on a 100 ms timer on the Qt thread.
+- Language: ReaderService detects the language and picks the default voice. `submit(text)` has no language or voice arguments, so the GUI cannot force a language.
+- Shutdown: closing the window, or a stop signal, starts the shutdown on a helper thread (stop the socket server, close the service and the sound output). The window closes when that finishes, or after 10 s at most.
+- Dependencies: `gui` extra = `pyside6-essentials` and `shiboken6` only. No WebEngine or PDF modules.

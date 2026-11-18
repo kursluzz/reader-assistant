@@ -1,6 +1,6 @@
 """GUI controller: turns user actions into service calls and service state into display state.
 
-This module does not import tkinter, so it is tested without a display. The window
+This module does not import Qt, so it is tested without a display. The window
 (``ui/window.py``) draws what :meth:`GuiController.display_state` returns and forwards
 clicks here. The controller never loads a model, synthesises, or touches the audio player.
 Those stay on the service's worker thread.
@@ -25,10 +25,6 @@ from reader_assistant.app.reader_service import (
     SpeechError,
 )
 from reader_assistant.clipboard.reader import ClipboardError, read_clipboard_text
-
-AUTO: Final = "auto"
-LANGUAGE_CHOICES: Final = (AUTO, "en", "he", "ru")
-DEFAULT_VOICE_LABEL: Final = "(default)"
 
 _STATE_TEXT: Final = {
     ServiceState.IDLE: "Idle.",
@@ -69,16 +65,13 @@ class GuiController:
 
     # --- user actions (all return at once) ----------------------------------
 
-    def read(self, text: str, language: str, voice: str) -> str:
+    def read(self, text: str) -> str:
         """Queue ``text`` for speech. Returns the message to show, or "" if accepted.
 
-        ``language`` is ``auto`` or a language code. ``voice`` is a voice ID, or the
-        default label to use the language's default voice.
+        The service detects the language and picks the voice. The GUI cannot override it.
         """
-        chosen_language = None if language == AUTO else language
-        chosen_voice = None if voice in ("", DEFAULT_VOICE_LABEL) else voice
         try:
-            accepted = self._service.submit(text, language=chosen_language, voice=chosen_voice)
+            accepted = self._service.submit(text)
         except SpeechError as exc:
             self._error = exc.message
             return exc.message
@@ -97,13 +90,6 @@ class GuiController:
 
     def set_volume_percent(self, percent: float) -> None:
         self._service.set_volume(max(0.0, min(100.0, percent)) / 100.0)
-
-    def voices_for(self, language: str) -> tuple[str, ...]:
-        """Voice labels for the language menu. Only explicit languages have choices."""
-        if language == AUTO:
-            return (DEFAULT_VOICE_LABEL,)
-        ids = tuple(voice for lang, voice in self._service.voices() if lang == language)
-        return (DEFAULT_VOICE_LABEL, *ids)
 
     def start_paste(self) -> None:
         """Read the clipboard on a helper thread, so a slow clipboard never blocks the window."""

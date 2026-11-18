@@ -26,18 +26,20 @@ from __future__ import annotations
 import os
 import threading
 import time
-import tkinter as tk
 from pathlib import Path
 from typing import Final
+
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
 
 from reader_assistant.app.reader_service import Event, EventKind, ReaderService
 from reader_assistant.audio.player import AudioPlayer
 from reader_assistant.audio.sink import AudioSink, default_sink
 from reader_assistant.config import load_config, resolve_paths
 from reader_assistant.engines.catalog import default_registry
-from reader_assistant.ui.controller import AUTO, DEFAULT_VOICE_LABEL, GuiController
+from reader_assistant.ui.controller import GuiController
 from reader_assistant.ui.latency import LatencyProbe
-from reader_assistant.ui.window import GuiWindow
+from reader_assistant.ui.window import MainWindow
 
 TARGET_BYTES: Final = 5_000
 SENTENCE: Final = "The quick brown fox jumps over the lazy dog, and then it sleeps. "
@@ -116,13 +118,12 @@ def main() -> int:
     clock = time.perf_counter
     probe = LatencyProbe(clock)
     controller = GuiController(service)
-    root = tk.Tk()
-    window = GuiWindow(
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(
         controller,
         on_close=lambda: _shutdown(service),
         probe=probe,
         clock=clock,
-        root=root,
     )
 
     phases: list[tuple[str, bool, str, bool]] = [
@@ -142,13 +143,13 @@ def main() -> int:
         sink.silent = silent
         mark = len(recorder.events)
         started = clock()
-        message = controller.read(text, "en", DEFAULT_VOICE_LABEL)
+        message = controller.read(text)
         if message:
             outcomes[name] = f"rejected: {message}"
-            root.after(POLL_MS, lambda: start_phase(index + 1))
+            QTimer.singleShot(POLL_MS, lambda: start_phase(index + 1))
             return
         if interrupt:
-            root.after(1000, lambda: _second_request(controller, probe))
+            QTimer.singleShot(1000, lambda: _second_request(controller, probe))
         wait_for_phase(index, mark, started)
 
     def wait_for_phase(index: int, mark: int, started: float) -> None:
@@ -157,19 +158,20 @@ def main() -> int:
         finished = request_id is not None and recorder.terminal_for(request_id)
         if finished or clock() - started > PHASE_TIMEOUT_S:
             outcomes.setdefault(name, f"done in {clock() - started:.1f} s")
-            root.after(POLL_MS, lambda: start_phase(index + 1))
+            QTimer.singleShot(POLL_MS, lambda: start_phase(index + 1))
             return
-        root.after(POLL_MS, lambda: wait_for_phase(index, mark, started))
+        QTimer.singleShot(POLL_MS, lambda: wait_for_phase(index, mark, started))
 
-    root.after(500, lambda: start_phase(0))
-    window.run()
+    QTimer.singleShot(500, lambda: start_phase(0))
+    window.show()
+    app.exec()
     _print_report(probe, outcomes)
     return 0
 
 
 def _second_request(controller: GuiController, probe: LatencyProbe) -> None:
     probe.mark("interruption_replacement")
-    controller.read("This second request interrupts the first one.", AUTO, DEFAULT_VOICE_LABEL)
+    controller.read("This second request interrupts the first one.")
 
 
 def _shutdown(service: ReaderService) -> threading.Event:

@@ -16,7 +16,11 @@ from reader_assistant.ipc.server import CLIENT_TIMEOUT_SECONDS
 
 
 class ServiceUnavailableError(Exception):
-    """The service is not running, or the connection failed before a reply."""
+    """The service cannot be reached. ``not_running`` is True only if nothing listens."""
+
+    def __init__(self, message: str, *, not_running: bool = False) -> None:
+        super().__init__(message)
+        self.not_running = not_running
 
 
 def send_speak(
@@ -38,7 +42,7 @@ def send_speak(
         try:
             sock.connect(str(path))
         except (FileNotFoundError, ConnectionRefusedError) as exc:
-            raise ServiceUnavailableError("the service is not running") from exc
+            raise ServiceUnavailableError("the service is not running", not_running=True) from exc
         except OSError as exc:
             raise ServiceUnavailableError(f"cannot connect to the service: {exc}") from exc
 
