@@ -77,3 +77,23 @@ def test_read_last_without_the_service_exits_with_the_not_running_code(
 
     assert code == EXIT_SERVICE_NOT_RUNNING
     assert "reader-assistant serve" in capsys.readouterr().err
+
+
+def test_capture_last_works_even_when_the_configuration_is_broken(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bad_config = workdir / "config.toml"
+    bad_config.write_text("this is not = valid [toml", encoding="utf-8")
+    payload = {
+        "hook_event_name": "Stop",
+        "session_id": SESSION,
+        "last_assistant_message": "Still stored.",
+    }
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+
+    code = main(
+        ["--config", str(bad_config), "capture-last"], env=_env(workdir), home=workdir / "home"
+    )
+
+    assert code == EXIT_OK
+    assert load_message(handoff_dir(_env(workdir), workdir / "home"), SESSION) == "Still stored."

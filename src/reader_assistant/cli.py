@@ -21,6 +21,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import os
 import signal
@@ -131,6 +132,10 @@ def main(
     args = parser.parse_args(argv)
 
     environment: Mapping[str, str] = os.environ if env is None else env
+    if args.command == "capture-last":
+        # A Stop hook must always succeed and print nothing. It runs before any configuration
+        # is read, so a broken configuration file cannot make it fail.
+        return _run_capture_last(environment, home if home is not None else Path.home())
     paths = resolve_paths(environment, home if home is not None else Path.home())
 
     try:
@@ -144,7 +149,7 @@ def main(
 
     # A keyboard shortcut must stay silent on success, and `info` prints only its table,
     # so their consoles show only warnings.
-    quiet = args.command in ("read-clipboard", "info", "read-last", "capture-last")
+    quiet = args.command in ("read-clipboard", "info", "read-last")
     console_level = "WARNING" if quiet else None
     configure_logging(
         config.log_level,
@@ -155,10 +160,6 @@ def main(
 
     if args.command == "info":
         print(format_info(config, paths))
-        return EXIT_OK
-    if args.command == "capture-last":
-        # A Stop hook must never block Claude or print anything, so every failure is ignored.
-        capture_payload(sys.stdin.read(), environment, home if home is not None else Path.home())
         return EXIT_OK
     if args.command == "read-last":
         return run_read_last(environment, home if home is not None else Path.home())
@@ -352,6 +353,13 @@ def run_read_clipboard(
         )
         return EXIT_OK
     return _fail(response.message)
+
+
+def _run_capture_last(environment: Mapping[str, str], home: Path) -> int:
+    """Store the message from the hook payload on stdin. Every failure is ignored."""
+    with contextlib.suppress(Exception):  # a hook must never fail, whatever goes wrong
+        capture_payload(sys.stdin.read(), environment, home)
+    return EXIT_OK
 
 
 def run_read_last(environment: Mapping[str, str], home: Path) -> int:

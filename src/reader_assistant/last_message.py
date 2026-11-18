@@ -8,7 +8,7 @@ Two commands use this module:
   part by part, through the running service.
 
 The stored text lives in the service's private runtime directory (mode 0600, inside 0700), is
-removed after a day, and is never logged.
+removed at the first capture after a day, and is never logged.
 
 Hooks also run after the ``/read-last`` command itself, and its reply would replace the message
 to read. ``read-last`` therefore leaves a short-lived marker that makes the next capture for the
@@ -152,15 +152,19 @@ def read_last(
     if not session_id:
         raise MessageError("this command must run inside a Claude Code session")
     directory = handoff_dir(environment, home)
-    # The reply to this command must not replace the message it reads.
+    # The reply to this command must not replace the message it reads. The marker is set
+    # again when the command ends, so a long reading cannot let it expire before the Stop hook.
     mark_skip_next_capture(directory, session_id, clock())
-    text = load_message(directory, session_id)
-    if text is None:
-        raise MessageError("there is no assistant message saved for this session yet")
-    parts = split_for_speech(to_speech_text(text))
-    if not parts:
-        raise MessageError("the last message has nothing to read aloud")
-    return _speak_parts(socket_path(environment, home), parts)
+    try:
+        text = load_message(directory, session_id)
+        if text is None:
+            raise MessageError("there is no assistant message saved for this session yet")
+        parts = split_for_speech(to_speech_text(text))
+        if not parts:
+            raise MessageError("the last message has nothing to read aloud")
+        return _speak_parts(socket_path(environment, home), parts)
+    finally:
+        mark_skip_next_capture(directory, session_id, clock())
 
 
 def _speak_parts(path: Path, parts: list[str]) -> ReadResult:

@@ -272,3 +272,16 @@ def test_a_part_that_never_finishes_times_out_for_the_whole_wait() -> None:
         _wait_for_outcome(events, 7, timeout=10.0, clock=fake_clock)
 
     assert 1 <= events.reads <= 30
+
+
+def test_the_marker_is_refreshed_when_a_long_reading_ends(workdir: Path) -> None:
+    """Reading can take longer than the marker's lifetime; its reply must still be skipped."""
+    env = _env(workdir)
+    directory = handoff_dir(env, workdir / "home")
+    capture_from_hook(_stop_payload("the real answer"), directory, now=1.0)
+    times = iter([0.0, 10_000.0])  # the command starts at 0 and ends 10,000 seconds later
+    with live_service(workdir / "rt" / "reader-assistant" / "service.sock"):
+        read_last(env, workdir / "home", clock=lambda: next(times))
+
+    assert not capture_from_hook(_stop_payload("Done."), directory, now=10_001.0)
+    assert load_message(directory, SESSION) == "the real answer"
