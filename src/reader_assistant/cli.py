@@ -48,10 +48,11 @@ from reader_assistant.config import (
 )
 from reader_assistant.engines.catalog import default_registry
 from reader_assistant.engines.registry import EngineRegistry
-from reader_assistant.ipc.client import ServiceUnavailableError, send_speak
+from reader_assistant.ipc.client import ServiceError, ServiceUnavailableError, send_speak
 from reader_assistant.ipc.paths import SocketPathError, socket_path
 from reader_assistant.ipc.protocol import ProtocolError, Response, SpeakRequest
 from reader_assistant.ipc.server import ServiceAlreadyRunningError, SpeechServer
+from reader_assistant.last_message import MessageError, capture_payload, read_last
 from reader_assistant.logging_setup import configure_logging
 from reader_assistant.notify import notify_service_not_running
 from reader_assistant.ui.service_link import ServiceLink, Starter, start_background_service
@@ -102,6 +103,14 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "read-clipboard", help="read the clipboard text aloud through the running service"
     )
+    subparsers.add_parser(
+        "read-last",
+        help="read this Claude Code session's last assistant message aloud (/read-last)",
+    )
+    subparsers.add_parser(
+        "capture-last",
+        help="store the last assistant message from a Claude Code Stop hook (JSON on stdin)",
+    )
     subparsers.add_parser("info", help="show the effective configuration and file locations")
     return parser
 
@@ -135,7 +144,7 @@ def main(
 
     # A keyboard shortcut must stay silent on success, and `info` prints only its table,
     # so their consoles show only warnings.
-    quiet = args.command in ("read-clipboard", "info")
+    quiet = args.command in ("read-clipboard", "info", "read-last", "capture-last")
     console_level = "WARNING" if quiet else None
     configure_logging(
         config.log_level,
@@ -147,6 +156,12 @@ def main(
     if args.command == "info":
         print(format_info(config, paths))
         return EXIT_OK
+    if args.command == "capture-last":
+        # A Stop hook must never block Claude or print anything, so every failure is ignored.
+        capture_payload(sys.stdin.read(), environment, home if home is not None else Path.home())
+        return EXIT_OK
+    if args.command == "read-last":
+        return run_read_last(environment, home if home is not None else Path.home())
     real_home = home if home is not None else Path.home()
     if args.command == "serve" and args.gui:
         return run_gui(
@@ -337,6 +352,28 @@ def run_read_clipboard(
         )
         return EXIT_OK
     return _fail(response.message)
+
+
+def run_read_last(environment: Mapping[str, str], home: Path) -> int:
+    """Read the current session's last message aloud, for the ``/read-last`` command."""
+    try:
+        result = read_last(environment, home)
+    except MessageError as exc:
+        return _fail(str(exc))
+    except ServiceUnavailableError as exc:
+        if exc.not_running:
+            return _fail(
+                "The speech service is not running. Start it with: reader-assistant serve",
+                code=EXIT_SERVICE_NOT_RUNNING,
+            )
+        return _fail(str(exc))
+    except ServiceError as exc:
+        return _fail(f"speech failed: {exc.message}")
+    except ProtocolError as exc:
+        return _fail(f"unexpected reply from the service: {exc.message}")
+    if result.stopped_early:
+        _log.info("reading stopped", extra={"parts_read": result.parts})
+    return EXIT_OK
 
 
 def _fail(message: str, *, code: int = EXIT_OPERATION_FAILED) -> int:

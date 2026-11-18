@@ -72,6 +72,10 @@ There is one speech service. It owns the voices and the sound output. Everything
 - **Window:** `uv run reader-assistant serve --gui`. The window is a client of the service. If a service is already running, the window connects to it. If not, the window starts one in a separate process and connects. Closing the window disconnects it, and the service keeps running. The window never runs a second service.
 - **Keyboard shortcut (Win+Shift+O in the author's setup):** reads the clipboard through the running service. It works whether or not the window is open. Set it up as described in [docs/CLIPBOARD.md](docs/CLIPBOARD.md#3-set-up-the-gnome-keyboard-shortcut).
 
+### Reading Claude Code answers aloud
+
+In a Claude Code session, `/read-last` reads the last answer of that session through the service. It needs a one-time hook setting. See [docs/CLAUDE_CODE.md](docs/CLAUDE_CODE.md).
+
 ### Using the window
 
 - Type or paste text into the box, then press **Read**. **Paste** replaces the text in the box with the clipboard text.
