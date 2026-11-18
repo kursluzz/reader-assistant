@@ -13,8 +13,24 @@ Checked with Claude Code 2.1: the Stop hook receives `session_id`, `transcript_p
 ## Setup
 
 1. Install and start the service (see the [README](../README.md)): `uv run reader-assistant serve`.
-2. The project command is in `.claude/commands/read-last.md`. It works in this repository.
-3. Add the Stop hook to your Claude Code settings, for example `~/.claude/settings.json`. Replace the path with your clone's `.venv` binary:
+2. Install the `/read-last` command for your user, so that it works in every project:
+
+   ```bash
+   mkdir -p ~/.claude/commands
+   cat > ~/.claude/commands/read-last.md <<'EOF2'
+   ---
+   description: Read the last assistant message of this session aloud with Reader Assistant
+   allowed-tools: Bash(/absolute/path/to/reader-assistant/.venv/bin/reader-assistant read-last)
+   ---
+   !`/absolute/path/to/reader-assistant/.venv/bin/reader-assistant read-last`
+
+   Reply with only the word "Done." and nothing else.
+   EOF2
+   ```
+
+   Replace `/absolute/path/to/reader-assistant` with your clone's path.
+
+3. Add the Stop hook to your user settings, `~/.claude/settings.json`. It applies to every project. Replace the path with your clone's `.venv` binary:
 
    ```json
    {
@@ -34,7 +50,7 @@ Checked with Claude Code 2.1: the Stop hook receives `session_id`, `transcript_p
    }
    ```
 
-4. In a Claude Code session, ask a question, then type `/read-last`.
+4. In any Claude Code session, ask a question, then type `/read-last`.
 
 ## Privacy
 
@@ -57,5 +73,5 @@ Checked with Claude Code 2.1: the Stop hook receives `session_id`, `transcript_p
 - Only the **final** text of each response is stored. Tool output and reasoning are not.
 - Code blocks are left out. Inline code is read as plain words.
 - A message is stored per session. Only the latest response of a session can be read.
-- The command is available in this repository. For other projects, copy it to `~/.claude/commands/`, using the absolute path to the binary.
-- The hook must be added to the settings by hand. The application does not change Claude Code's settings.
+- Both the hook and the command are user-wide. The application does not change Claude Code's settings itself; the setup above is done by hand.
+- The command uses the absolute path to the binary, so it works from any directory.
