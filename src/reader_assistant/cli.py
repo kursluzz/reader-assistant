@@ -273,7 +273,8 @@ def run_gui(
     except ImportError:
         return _fail(
             "the window needs the optional GUI part, which is not installed. "
-            "Install it with: uv sync --extra gui (or: pip install 'reader-assistant[gui]')"
+            "Install the desktop parts with: uv tool install --force 'reader-assistant[desktop]'. "
+            "In a clone, run: uv sync --all-extras"
         )
 
     try:

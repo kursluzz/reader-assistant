@@ -183,7 +183,8 @@ def test_serve_gui_without_the_gui_extra_says_how_to_install_it_and_starts_nothi
 
     err = capsys.readouterr().err
     assert code == 1
-    assert "uv sync --extra gui" in err
+    assert "uv tool install --force 'reader-assistant[desktop]'" in err
+    assert "uv sync --all-extras" in err
     assert "Traceback" not in err
     assert starts == []
     assert not path.exists()
