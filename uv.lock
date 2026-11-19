@@ -658,6 +658,13 @@ source = { editable = "." }
 audio = [
     { name = "sounddevice" },
 ]
+desktop = [
+    { name = "kokoro-onnx" },
+    { name = "piper-tts" },
+    { name = "pyside6-essentials" },
+    { name = "shiboken6" },
+    { name = "sounddevice" },
+]
 gui = [
     { name = "pyside6-essentials" },
     { name = "shiboken6" },
@@ -682,10 +689,11 @@ requires-dist = [
     { name = "kokoro-onnx", marker = "extra == 'kokoro'", specifier = "==0.6.1" },
     { name = "piper-tts", marker = "extra == 'piper'", specifier = "==1.8.0" },
     { name = "pyside6-essentials", marker = "extra == 'gui'", specifier = "==6.12.0" },
+    { name = "reader-assistant", extras = ["kokoro", "piper", "audio", "gui"], marker = "extra == 'desktop'" },
     { name = "shiboken6", marker = "extra == 'gui'", specifier = "==6.12.0" },
     { name = "sounddevice", marker = "extra == 'audio'", specifier = "==0.5.6" },
 ]
-provides-extras = ["kokoro", "piper", "audio", "gui"]
+provides-extras = ["kokoro", "piper", "audio", "gui", "desktop"]
 
 [package.metadata.requires-dev]
 dev = [

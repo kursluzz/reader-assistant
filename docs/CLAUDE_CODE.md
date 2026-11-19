@@ -30,7 +30,7 @@ Checked with Claude Code 2.1: the Stop hook receives `session_id`, `transcript_p
 
    Replace `/absolute/path/to/reader-assistant` with your clone's path.
 
-3. Add the Stop hook to your user settings, `~/.claude/settings.json`. It applies to every project. Replace the path with your clone's `.venv` binary:
+3. Add the Stop hook to your user settings, `~/.claude/settings.json`. It applies to every project. Replace the path with your clone's `.venv` binary (or, after `uv tool install`, the output of `which reader-assistant`):
 
    ```json
    {

@@ -46,7 +46,7 @@ X-GNOME-Autostart-enabled=true
 
 ## 3. Set up the GNOME keyboard shortcut
 
-GNOME's shortcut runs with its own environment, so give it the **absolute path** to the command, not just `reader-assistant`:
+GNOME's shortcut runs with its own environment, so give it the **absolute path** to the command, not just `reader-assistant`. The examples use the clone's `.venv`. If you installed the command with `uv tool install`, use the output of `which reader-assistant` instead (see [INSTALLATION.md](INSTALLATION.md#shortcut-autostart-and-the-claude-code-hook)).
 
 1. Open **Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts**.
 2. Click **+** (Add Custom Shortcut).
