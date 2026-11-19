@@ -37,10 +37,10 @@ There are two ways to install. For everyday use, install the `reader-assistant` 
 The package is not on PyPI yet, so install it from GitHub. The `desktop` extra adds both voice engines, sound output and the window (see the table below):
 
 ```bash
-uv tool install --python 3.12 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
+uv tool install 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
 ```
 
-Or from a clone: `git clone https://github.com/kursluzz/reader-assistant.git`, then `uv tool install --python 3.12 '.[desktop]'` inside it. [docs/INSTALLATION.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/INSTALLATION.md) has the upgrade and uninstall steps.
+Or from a clone: `git clone https://github.com/kursluzz/reader-assistant.git`, then `uv tool install '.[desktop]'` inside it. [docs/INSTALLATION.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/INSTALLATION.md) has the upgrade and uninstall steps.
 
 - Upgrade: run the install command again with `--force` (see the [INSTALLATION guide](https://github.com/kursluzz/reader-assistant/blob/main/docs/INSTALLATION.md)). Stop the running service first, and start it again afterwards.
 - Uninstall: `uv tool uninstall reader-assistant`. This removes the program only. Voice models, configuration and logs stay.
@@ -143,11 +143,11 @@ Logs are written to `~/.local/state/reader-assistant/logs/reader-assistant.log` 
 |---|---|
 | A notification says "Reader Assistant is not running" (or the shortcut exits with status 3) | Run `uv run reader-assistant serve`, or open the window with `serve --gui`. |
 | `another instance is already running` | A service is already running. Use it, or stop it before starting another. |
-| `the window needs the optional GUI part` | In a clone, run `uv sync --extra gui`. For the installed command, reinstall with the desktop extra: `uv tool install --force --python 3.12 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'`. |
+| `the window needs the optional GUI part` | In a clone, run `uv sync --extra gui`. For the installed command, reinstall with the desktop extra: `uv tool install --force 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'`. |
 | `wl-paste` is not installed | `sudo apt install wl-clipboard`. |
 | The shortcut is silent, and no sound follows | The clipboard may be empty, or hold an image, file or rich text, which are refused. The shortcut cannot show that message; run `uv run reader-assistant read-clipboard` in a terminal to see it. |
 | `audio backend unavailable` or `cannot open audio output` | Install `libportaudio2` and the `audio` extra, and check the output device in your sound settings. |
-| `engine_failed: ... No module named 'kokoro_onnx'` (or `piper`) | Install the matching extra: in a clone, for example `uv sync --extra kokoro`; for the installed command, `uv tool install --force --python 3.12 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'`. |
+| `engine_failed: ... No module named 'kokoro_onnx'` (or `piper`) | Install the matching extra: in a clone, for example `uv sync --extra kokoro`; for the installed command, `uv tool install --force 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'`. |
 | `Kokoro file not found`, `Piper model not found` or `Piper model configuration not found` in the status line or log | Put the model file in the path shown by `reader-assistant info`. See [Voice model files](#voice-model-files). |
 | The text is refused as too long | Speech is limited to 5,000 bytes per request. Read the text in parts. |
 | The shortcut reports success but you hear nothing | An engine or sound error after acceptance is not reported to the shortcut. Check the status line in the window, or the log file. |

@@ -5,7 +5,7 @@ This document covers the installed `reader-assistant` command: how to install it
 ## Prerequisites
 
 - Linux with a **Wayland** session and GNOME (or another desktop where you can set a custom shortcut). X11 is not supported.
-- [uv](https://docs.astral.sh/uv/). uv installs Python 3.12 when it is missing; `--python 3.12` asks for it explicitly.
+- [uv](https://docs.astral.sh/uv/). uv finds or installs a Python that the package supports (3.12 or 3.13).
 - System packages:
   ```bash
   sudo apt install wl-clipboard libportaudio2
@@ -20,13 +20,13 @@ Choose one source. Each one installs the `desktop` extra: both voice engines (`k
 **From a GitHub release**, using the wheel attached to it (replace `v0.1.0` with the release you want):
 
 ```bash
-uv tool install --python 3.12 'reader-assistant[desktop] @ https://github.com/kursluzz/reader-assistant/releases/download/v0.1.0/reader_assistant-0.1.0-py3-none-any.whl'
+uv tool install 'reader-assistant[desktop] @ https://github.com/kursluzz/reader-assistant/releases/download/v0.1.0/reader_assistant-0.1.0-py3-none-any.whl'
 ```
 
 **From the Git repository**, which is the current development state:
 
 ```bash
-uv tool install --python 3.12 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
+uv tool install 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
 ```
 
 **From a clone**, which is the way to use a local copy of the code:
@@ -34,7 +34,7 @@ uv tool install --python 3.12 'reader-assistant[desktop] @ git+https://github.co
 ```bash
 git clone https://github.com/kursluzz/reader-assistant.git
 cd reader-assistant
-uv tool install --python 3.12 '.[desktop]'
+uv tool install '.[desktop]'
 ```
 
 You can leave out extras you do not need, for example `reader-assistant[kokoro,piper]` without the window. Without `kokoro` or `piper`, that language cannot be spoken. Without `audio`, nothing is played.
@@ -53,7 +53,7 @@ reader-assistant info      # configuration file, models directory, log directory
 Run the install command of your source again with `--force`. For the Git repository:
 
 ```bash
-uv tool install --force --python 3.12 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
+uv tool install --force 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
 ```
 
 For a release, use the link of the new release. For a clone, pull first:
@@ -61,7 +61,7 @@ For a release, use the link of the new release. For a clone, pull first:
 ```bash
 cd reader-assistant
 git pull
-uv tool install --force --python 3.12 '.[desktop]'
+uv tool install --force '.[desktop]'
 ```
 
 - `--force` replaces the installed version of the command.

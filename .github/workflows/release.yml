@@ -75,7 +75,7 @@ jobs:
           {
             printf '\n## Install\n\n'
             printf '```bash\n'
-            printf 'uv tool install --python 3.12 "reader-assistant[desktop] @ https://github.com/%s/releases/download/%s/reader_assistant-%s-py3-none-any.whl"\n' "$GITHUB_REPOSITORY" "$TAG" "$version"
+            printf 'uv tool install "reader-assistant[desktop] @ https://github.com/%s/releases/download/%s/reader_assistant-%s-py3-none-any.whl"\n' "$GITHUB_REPOSITORY" "$TAG" "$version"
             printf '```\n'
           } >> release-notes.md
       - name: Create the release

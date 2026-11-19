@@ -3,7 +3,7 @@ name = "reader-assistant"
 version = "0.1.0"
 description = "Local-first desktop app that reads clipboard text aloud using offline neural TTS."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Reader Assistant contributors" }]
@@ -13,6 +13,7 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
 # Core runtime dependencies are empty on purpose. Engines, audio and the window are optional
