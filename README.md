@@ -12,6 +12,26 @@ No cloud speech service, no account, no network use while reading. Text does not
 - **Platform:** Linux desktop with a **Wayland** session (the clipboard is read with `wl-paste`). X11 is not supported. Developed and tested on GNOME with Wayland.
 - **Licence:** the application is GPL-3.0-or-later (see [LICENSE](https://github.com/kursluzz/reader-assistant/blob/main/LICENSE)). Voice models have their own licences, listed in [Voices and licences](#voices-and-licences).
 
+## Quick start
+
+1. **Install** from GitHub. The details are in [Installation](#installation):
+
+   ```bash
+   uv tool install 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
+   ```
+
+2. **Download the voices**, once, as described in [Voice model files](#voice-model-files). Without them nothing is spoken.
+
+3. **Start it.** Choose one way:
+   - **With the window** (the simplest): `reader-assistant serve --gui`. If no service is running, the window starts one in the background. Type or paste text and press **Read**. Closing the window leaves the service running.
+   - **Without a window** (the service only): `reader-assistant serve`. It runs in the foreground; press Ctrl+C to stop it. Use this when you read with the keyboard shortcut or with Claude Code.
+
+4. **Read the clipboard with a keyboard shortcut.** The service must be running. Copy text in any application and press the shortcut. Set it up once in GNOME with the command `reader-assistant read-clipboard`; the steps are in [CLIPBOARD.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/CLIPBOARD.md#3-set-up-the-gnome-keyboard-shortcut). Use the full path printed by `which reader-assistant`.
+
+5. **Read Claude Code answers aloud.** The service must be running. In a Claude Code session, type `/read-last`. The one-time setup is in [CLAUDE_CODE.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/CLAUDE_CODE.md).
+
+Check the installation at any time with `reader-assistant info`. To start the service at login, see [CLIPBOARD.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/CLIPBOARD.md#2-start-the-service).
+
 ## Status
 
 Version 0.1.0, pre-alpha. The core service, the keyboard shortcut and the window are implemented and tested on the developer's machine. Milestones M0 to M5-4C are accepted. The final release checks are in progress. See [Limitations](#limitations).
@@ -32,7 +52,7 @@ There are two ways to install. For everyday use, install the `reader-assistant` 
 
 ### As an installed command (recommended)
 
-[uv](https://docs.astral.sh/uv/) puts the program in its own environment. It does not touch your system Python or the repository:
+[uv](https://docs.astral.sh/uv/) puts the program in its own environment. It does not touch your system Python or the repository.
 
 The package is not on PyPI yet, so install it from GitHub. The `desktop` extra adds both voice engines, sound output and the window (see the table below):
 
@@ -89,7 +109,7 @@ curl -L -o "$MODELS/piper/ru_RU-denis-medium/ru_RU-denis-medium.onnx.json" https
 
 Compare each file's SHA-256 (`sha256sum <file>`) with the value in [docs/MODEL_MANIFEST.toml](https://github.com/kursluzz/reader-assistant/blob/main/docs/MODEL_MANIFEST.toml) before you use it. The Piper `.onnx.json` file must sit next to its `.onnx` file.
 
-## Running it
+## Ways to run it
 
 There is one speech service. It owns the voices and the sound output. Everything else talks to it. The commands below are the installed `reader-assistant`. In a clone that is not installed, prefix them with `uv run`, as described in [CONTRIBUTING.md](https://github.com/kursluzz/reader-assistant/blob/main/CONTRIBUTING.md).
 
