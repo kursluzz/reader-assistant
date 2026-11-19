@@ -12,7 +12,7 @@ Checked with Claude Code 2.1: the Stop hook receives `session_id`, `transcript_p
 
 ## Setup
 
-1. Install and start the service (see the [README](../README.md)): `uv run reader-assistant serve`.
+1. Install and start the service (see the [README](../README.md)): `reader-assistant serve`.
 2. Install the `/read-last` command for your user, so that it works in every project:
 
    ```bash

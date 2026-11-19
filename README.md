@@ -68,7 +68,7 @@ Without `kokoro` or `piper`, the matching language cannot be spoken. Without `au
 
 ### Voice model files
 
-The voice model files are not in the repository and are not downloaded by the application. Download them once, into the models directory. By default that is `~/.local/share/reader-assistant/models` (`$XDG_DATA_HOME/reader-assistant/models`). `RA_MODELS_DIR` overrides it. Check the path with `uv run reader-assistant info`.
+The voice model files are not in the repository and are not downloaded by the application. Download them once, into the models directory. By default that is `~/.local/share/reader-assistant/models` (`$XDG_DATA_HOME/reader-assistant/models`). `RA_MODELS_DIR` overrides it. Check the path with `reader-assistant info`.
 
 ```bash
 MODELS=~/.local/share/reader-assistant/models
@@ -91,10 +91,10 @@ Compare each file's SHA-256 (`sha256sum <file>`) with the value in [docs/MODEL_M
 
 ## Running it
 
-There is one speech service. It owns the voices and the sound output. Everything else talks to it. The commands below use `uv run` in a clone. With the installed command, run `reader-assistant` directly.
+There is one speech service. It owns the voices and the sound output. Everything else talks to it. The commands below are the installed `reader-assistant`. In a clone that is not installed, prefix them with `uv run`, as described in [CONTRIBUTING.md](https://github.com/kursluzz/reader-assistant/blob/main/CONTRIBUTING.md).
 
-- **Background service (headless):** `uv run reader-assistant serve`. It runs in the foreground until you press Ctrl+C. To start it at login, see [docs/CLIPBOARD.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/CLIPBOARD.md#2-start-the-service).
-- **Window:** `uv run reader-assistant serve --gui`. The window is a client of the service. If a service is already running, the window connects to it. If not, the window starts one in a separate process and connects. Closing the window disconnects it, and the service keeps running. The window never runs a second service.
+- **Background service (headless):** `reader-assistant serve`. It runs in the foreground until you press Ctrl+C. To start it at login, see [docs/CLIPBOARD.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/CLIPBOARD.md#2-start-the-service).
+- **Window:** `reader-assistant serve --gui`. The window is a client of the service. If a service is already running, the window connects to it. If not, the window starts one in a separate process and connects. Closing the window disconnects it, and the service keeps running. The window never runs a second service.
 - **Keyboard shortcut (Win+Shift+O in the author's setup):** reads the clipboard through the running service. It works whether or not the window is open. Set it up as described in [docs/CLIPBOARD.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/CLIPBOARD.md#3-set-up-the-gnome-keyboard-shortcut).
 
 ### Reading Claude Code answers aloud
@@ -111,8 +111,8 @@ In a Claude Code session, `/read-last` reads the last answer of that session thr
 ### Checking the installation
 
 ```bash
-uv run reader-assistant info          # configuration, paths, version
-uv run reader-assistant --version
+reader-assistant info          # configuration, paths, version
+reader-assistant --version
 ```
 
 ## Configuration
@@ -141,11 +141,11 @@ Logs are written to `~/.local/state/reader-assistant/logs/reader-assistant.log` 
 
 | What you see | What to do |
 |---|---|
-| A notification says "Reader Assistant is not running" (or the shortcut exits with status 3) | Run `uv run reader-assistant serve`, or open the window with `serve --gui`. |
+| A notification says "Reader Assistant is not running" (or the shortcut exits with status 3) | Run `reader-assistant serve`, or open the window with `serve --gui`. |
 | `another instance is already running` | A service is already running. Use it, or stop it before starting another. |
 | `the window needs the optional GUI part` | In a clone, run `uv sync --extra gui`. For the installed command, reinstall with the desktop extra: `uv tool install --force 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'`. |
 | `wl-paste` is not installed | `sudo apt install wl-clipboard`. |
-| The shortcut is silent, and no sound follows | The clipboard may be empty, or hold an image, file or rich text, which are refused. The shortcut cannot show that message; run `uv run reader-assistant read-clipboard` in a terminal to see it. |
+| The shortcut is silent, and no sound follows | The clipboard may be empty, or hold an image, file or rich text, which are refused. The shortcut cannot show that message; run `reader-assistant read-clipboard` in a terminal to see it. |
 | `audio backend unavailable` or `cannot open audio output` | Install `libportaudio2` and the `audio` extra, and check the output device in your sound settings. |
 | `engine_failed: ... No module named 'kokoro_onnx'` (or `piper`) | Install the matching extra: in a clone, for example `uv sync --extra kokoro`; for the installed command, `uv tool install --force 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'`. |
 | `Kokoro file not found`, `Piper model not found` or `Piper model configuration not found` in the status line or log | Put the model file in the path shown by `reader-assistant info`. See [Voice model files](#voice-model-files). |

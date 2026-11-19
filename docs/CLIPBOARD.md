@@ -25,14 +25,14 @@ uv sync --all-extras                          # from the repository directory
 ## 2. Start the service
 
 ```bash
-uv run reader-assistant serve
+reader-assistant serve
 ```
 
 The service runs in the foreground, loads voices on first use, and stops on Ctrl+C or SIGTERM. It removes its socket when it stops. Logs go to `~/.local/state/reader-assistant/logs/reader-assistant.log`.
 
 Only one instance can run at a time. A second `serve` reports that another instance is already running and exits with status 1.
 
-To use the window instead, run `uv run reader-assistant serve --gui`. The window connects to the running service, or starts one if none is running. Closing the window does not stop the service. See [ARCHITECTURE.md](ARCHITECTURE.md#gui-as-a-client-m5-4c).
+To use the window instead, run `reader-assistant serve --gui`. The window connects to the running service, or starts one if none is running. Closing the window does not stop the service. See [ARCHITECTURE.md](ARCHITECTURE.md#gui-as-a-client-m5-4c).
 
 Start it at login (optional): create `~/.config/autostart/reader-assistant.desktop`, replacing the path with the output of `which reader-assistant`:
 
