@@ -22,6 +22,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.12.13"
       - name: The tag must match the package version
         run: |
           version="$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)"
@@ -30,6 +32,8 @@ jobs:
             exit 1
           fi
       - run: uv build
+      - name: Check the package metadata and README rendering
+        run: uvx --from twine==7.0.0 twine check --strict dist/*
       - name: Smoke-test the built wheel, and a wheel built from the sdist
         run: |
           uvx --from dist/*.whl reader-assistant --version
