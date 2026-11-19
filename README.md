@@ -38,15 +38,15 @@ There are two ways to install. For everyday use, install the `reader-assistant` 
 uv tool install --python 3.12 'reader-assistant[desktop]'
 ```
 
-The `desktop` extra adds both voice engines, sound output and the window (see the table below). The package is not on PyPI yet. Until the first release is published, install from a clone:
+The `desktop` extra adds both voice engines, sound output and the window (see the table below). The package is not on PyPI yet. Until the first release is published, install it from the Git repository:
 
 ```bash
-git clone https://github.com/kursluzz/reader-assistant.git
-cd reader-assistant
-uv tool install --python 3.12 '.[desktop]'
+uv tool install --python 3.12 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
 ```
 
-- Upgrade: `uv tool upgrade reader-assistant`. Stop the running service first, and start it again afterwards.
+Or from a clone: `git clone https://github.com/kursluzz/reader-assistant.git`, then `uv tool install --python 3.12 '.[desktop]'` inside it. [docs/INSTALLATION.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/INSTALLATION.md) has the upgrade and uninstall steps.
+
+- Upgrade: `uv tool upgrade reader-assistant` (from PyPI or the Git URL; a clone needs a reinstall, see the INSTALLATION guide). Stop the running service first, and start it again afterwards.
 - Uninstall: `uv tool uninstall reader-assistant`. This removes the program only. Voice models, configuration and logs stay.
 - Check: `reader-assistant info`.
 

@@ -14,19 +14,27 @@ This document covers the installed `reader-assistant` command: how to install it
 
 ## Install
 
-From PyPI:
+From PyPI, once the release is published:
 
 ```bash
 uv tool install --python 3.12 'reader-assistant[desktop]'
 ```
 
-From a clone of the repository (use this until the release is on PyPI):
+Until then, directly from the Git repository:
+
+```bash
+uv tool install --python 3.12 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
+```
+
+Or from a clone, which is the way to use a local copy of the code:
 
 ```bash
 git clone https://github.com/kursluzz/reader-assistant.git
 cd reader-assistant
 uv tool install --python 3.12 '.[desktop]'
 ```
+
+The window needs the Qt runtime libraries. A GNOME desktop has them. On a minimal system, install them with `sudo apt install libegl1 libgl1 libxkbcommon0 libdbus-1-3 libfontconfig1`; if the window reports a missing `libEGL.so.1`, that is the fix.
 
 The `desktop` extra installs both voice engines (`kokoro`, `piper`), sound output (`audio`) and the window (`gui`). To leave some of them out, install an extra selection instead, for example `reader-assistant[kokoro,piper]`. Without `kokoro` or `piper`, that language cannot be spoken. Without `audio`, nothing is played.
 
@@ -41,8 +49,18 @@ reader-assistant info      # configuration file, models directory, log directory
 
 ## Upgrade
 
+From PyPI, or from the Git URL:
+
 ```bash
 uv tool upgrade reader-assistant
+```
+
+From a clone, `uv tool upgrade` only rebuilds the copy the tool was installed from, so pull the new code and reinstall:
+
+```bash
+cd reader-assistant
+git pull
+uv tool install --force --python 3.12 '.[desktop]'
 ```
 
 - uv keeps the extras recorded at install time, so a `desktop` install stays a `desktop` install.
