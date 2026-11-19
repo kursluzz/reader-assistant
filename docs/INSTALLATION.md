@@ -1,27 +1,26 @@
 # Installing, upgrading and uninstalling
 
-This document covers the installed `reader-assistant` command: how to install it, upgrade it, remove it, and what happens to your data. For the first setup of voices and the keyboard shortcut, see the [README](../README.md) and [CLIPBOARD.md](CLIPBOARD.md).
+This document covers the installed `reader-assistant` command: how to install it, upgrade it, remove it, and where your data is kept. For the voice model files, see the [README](../README.md#voice-model-files). For the keyboard shortcut and autostart, see [CLIPBOARD.md](CLIPBOARD.md).
 
 ## Prerequisites
 
-- Linux with a **Wayland** session and GNOME (or another desktop where you can set a custom shortcut).
-- [uv](https://docs.astral.sh/uv/). uv installs Python 3.12 when it is missing (`--python 3.12` asks for it explicitly).
+- Linux with a **Wayland** session and GNOME (or another desktop where you can set a custom shortcut). X11 is not supported.
+- [uv](https://docs.astral.sh/uv/). uv installs Python 3.12 when it is missing; `--python 3.12` asks for it explicitly.
 - System packages:
   ```bash
   sudo apt install wl-clipboard libportaudio2
   ```
-  `libnotify-bin` (`notify-send`) is optional and only used for the "service is not running" notification.
-- Voice model files. They are not part of the package and are downloaded once; see [Voice model files](../README.md#voice-model-files).
+  `libnotify-bin` (`notify-send`) is optional. It only shows the "service is not running" notification.
 
 ## Install
 
-Once the release is on PyPI:
+From PyPI:
 
 ```bash
 uv tool install --python 3.12 'reader-assistant[desktop]'
 ```
 
-Until then, from a clone of the repository:
+From a clone of the repository (use this until the release is on PyPI):
 
 ```bash
 git clone https://github.com/kursluzz/reader-assistant.git
@@ -29,9 +28,9 @@ cd reader-assistant
 uv tool install --python 3.12 '.[desktop]'
 ```
 
-The `desktop` extra installs both voice engines (`kokoro`, `piper`), sound output (`audio`) and the window (`gui`). You can leave out extras you do not need, for example `reader-assistant` alone for a headless service without voices or sound. Extras are listed in the [README](../README.md#from-a-clone-development).
+The `desktop` extra installs both voice engines (`kokoro`, `piper`), sound output (`audio`) and the window (`gui`). To leave some of them out, install an extra selection instead, for example `reader-assistant[kokoro,piper]`. Without `kokoro` or `piper`, that language cannot be spoken. Without `audio`, nothing is played.
 
-uv places the `reader-assistant` command in `~/.local/bin` (`uv tool dir --bin` shows the directory). If it is not on your `PATH`, run `uv tool update-shell` and open a new terminal.
+uv places the `reader-assistant` command in `~/.local/bin`. Run `uv tool dir --bin` to see the directory. If it is not on your `PATH`, run `uv tool update-shell` and open a new terminal.
 
 Check the installation:
 
@@ -47,10 +46,10 @@ uv tool upgrade reader-assistant
 ```
 
 - uv keeps the extras recorded at install time, so a `desktop` install stays a `desktop` install.
-- Stop the running service before the upgrade and start it again afterwards. A service that was already running keeps the old code until it restarts.
-- Upgrading never changes the data listed in [Where your data lives](#where-your-data-lives).
+- Stop the running service before the upgrade and start it again afterwards. A service that was already running keeps the old code until it restarts. Stop it with Ctrl+C in its terminal, or with `pkill -TERM -f 'reader.assistant serve'`, which also matches a service the window started.
+- An upgrade does not change the data listed under [Where your data lives](#where-your-data-lives).
 
-To add the desktop parts to an existing install that has none (for example one installed as `reader-assistant` alone), replace it with the full install:
+To add the desktop parts to an install that has only some of them, reinstall with the full set:
 
 ```bash
 uv tool install --force --python 3.12 'reader-assistant[desktop]'
@@ -58,11 +57,13 @@ uv tool install --force --python 3.12 'reader-assistant[desktop]'
 
 ## Uninstall
 
+Stop the service first, then:
+
 ```bash
 uv tool uninstall reader-assistant
 ```
 
-This removes the program: its tool environment and the `reader-assistant` command. It does not remove your data. Stop the service before you uninstall it.
+This removes the program: its tool environment and the `reader-assistant` command. It does not remove your data.
 
 To remove your data as well, delete the directories below. This cannot be undone, and the voice models must then be downloaded again.
 
@@ -72,31 +73,30 @@ rm -r ~/.config/reader-assistant ~/.local/share/reader-assistant ~/.local/state/
 
 ## Where your data lives
 
-Paths follow the XDG base directories. The defaults are shown; the environment variables `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_RUNTIME_DIR` change them. `reader-assistant info` prints the paths in use.
+Paths follow the XDG base directories. The defaults are shown. The environment variables `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_RUNTIME_DIR` change them, and `reader-assistant info` prints the paths in use.
 
 | What | Default location | Set by | Kept by upgrade | Kept by uninstall |
 |---|---|---|---|---|
 | Voice model files (Kokoro, Piper) | `~/.local/share/reader-assistant/models` | `RA_MODELS_DIR`, or `models_dir` in the configuration file | Yes | Yes |
 | Configuration | `~/.config/reader-assistant/config.toml` | `--config PATH` | Yes | Yes |
 | Logs | `~/.local/state/reader-assistant/logs` | `log_dir` in the configuration file | Yes | Yes |
-| Last-message capture (for `/read-last`), including skip markers | `$XDG_RUNTIME_DIR/reader-assistant/handoff/` | Not configurable | Yes, while the session lasts | Yes, while the session lasts |
+| Last-message capture for `/read-last`, and its skip markers | `$XDG_RUNTIME_DIR/reader-assistant/handoff/` | Not configurable | Yes | Yes (cleared at logout) |
 | Service socket | `$XDG_RUNTIME_DIR/reader-assistant/service.sock` | Not configurable | Recreated when the service starts | Removed when the service stops |
-| Program (tool environment and command) | uv tools directory (`uv tool dir`) and `~/.local/bin/reader-assistant` | uv | Replaced | Removed |
+| Program (tool environment and command) | The uv tools directory (`uv tool dir`) and `~/.local/bin/reader-assistant` | uv | Replaced | Removed |
 
 Notes:
 
-- The runtime directory is cleared at logout. If `XDG_RUNTIME_DIR` is not set, the socket and the capture files go under `~/.local/state/reader-assistant/` instead. Nothing needs to be kept there by hand.
-- Only the program lives in uv's tool environment. The application never writes into it, so an upgrade or uninstall cannot remove models, configuration or logs.
-- The development scripts (`scripts/`) also write benchmark results and sample audio under `~/.local/share/reader-assistant/`. Uninstalling the program does not remove them, and they are not needed to run the application.
+- If `XDG_RUNTIME_DIR` is not set, the socket and the capture files go under `~/.local/state/reader-assistant/` instead.
+- The program lives in uv's tool environment, and the application never writes into it. An upgrade or an uninstall therefore cannot remove models, configuration or logs.
 
-## Shortcut, autostart and the Claude Code hook
+## Keyboard shortcut, autostart and the Claude Code hook
 
-Three things refer to the program by its absolute path, not by its name:
+These three integrations run the command by its absolute path. Find the path with `which reader-assistant` (normally `~/.local/bin/reader-assistant`) and use it in:
 
-- the GNOME keyboard shortcut (`read-clipboard`),
-- the autostart entry (`serve`), and
-- the Claude Code Stop hook and the `/read-last` command (`capture-last` and `read-last`).
+- the GNOME keyboard shortcut (`read-clipboard`), see [CLIPBOARD.md](CLIPBOARD.md#3-set-up-the-gnome-keyboard-shortcut),
+- the autostart entry (`serve`), see [CLIPBOARD.md](CLIPBOARD.md#2-start-the-service), and
+- the Claude Code Stop hook and the `/read-last` command, see [CLAUDE_CODE.md](CLAUDE_CODE.md).
 
-The setup in [CLIPBOARD.md](CLIPBOARD.md) and [CLAUDE_CODE.md](CLAUDE_CODE.md) points at `<repo>/.venv/bin/reader-assistant`. A `uv tool install` does not change those paths, so they keep working for as long as that virtual environment exists. To use the installed command instead, change the paths in those three places to the output of `which reader-assistant` (normally `~/.local/bin/reader-assistant`). Use the absolute path, not `~/...`: an autostart `Exec=` line does not expand `~`.
+Use the absolute path, not `~/...`: an autostart `Exec=` line does not expand `~`.
 
-Only one service can run at a time. If you use both a clone and an installed command, start only one of them.
+Only one service can run at a time. Start one service, and stop any other before you start it.

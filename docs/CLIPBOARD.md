@@ -34,24 +34,24 @@ Only one instance can run at a time. A second `serve` reports that another insta
 
 To use the window instead, run `uv run reader-assistant serve --gui`. The window connects to the running service, or starts one if none is running. Closing the window does not stop the service. See [ARCHITECTURE.md](ARCHITECTURE.md#gui-as-a-client-m5-4c).
 
-Start it at login (optional): create `~/.config/autostart/reader-assistant.desktop`, replacing `<repo>` with the absolute path to your clone:
+Start it at login (optional): create `~/.config/autostart/reader-assistant.desktop`, replacing the path with the output of `which reader-assistant`:
 
 ```ini
 [Desktop Entry]
 Type=Application
 Name=Reader Assistant service
-Exec=<repo>/.venv/bin/reader-assistant serve
+Exec=/path/to/reader-assistant serve
 X-GNOME-Autostart-enabled=true
 ```
 
 ## 3. Set up the GNOME keyboard shortcut
 
-GNOME's shortcut runs with its own environment, so give it the **absolute path** to the command, not just `reader-assistant`. The examples use the clone's `.venv`. If you installed the command with `uv tool install`, use the output of `which reader-assistant` instead (see [INSTALLATION.md](INSTALLATION.md#shortcut-autostart-and-the-claude-code-hook)).
+GNOME's shortcut runs with its own environment, so give it the **absolute path** to the command, not just `reader-assistant`. Use the output of `which reader-assistant`, which is where `uv tool install` puts the command.
 
 1. Open **Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts**.
 2. Click **+** (Add Custom Shortcut).
 3. Name: `Read clipboard aloud`
-4. Command: `<repo>/.venv/bin/reader-assistant read-clipboard`
+4. Command: `/path/to/reader-assistant read-clipboard` (the path is the output of `which reader-assistant`)
 5. Click **Set Shortcut**, press **Super+Shift+R** (or another combination you prefer), and confirm.
 
 To change the shortcut later, return to the same list and edit it. The suggested key is a convention; any free combination works.

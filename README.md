@@ -197,4 +197,4 @@ uv run mypy
 
 Project documents: [PROJECT_PLAN.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/PROJECT_PLAN.md) (milestones and decisions), [ARCHITECTURE.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/ARCHITECTURE.md) (modules, IPC protocol, GUI), [CLIPBOARD.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/CLIPBOARD.md) (shortcut and protocol v1), [AUDIO.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/AUDIO.md), [ENGINES.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/ENGINES.md), [TTS_BENCHMARKS.md](https://github.com/kursluzz/reader-assistant/blob/main/docs/TTS_BENCHMARKS.md), and the voice research documents `HEBREW_TTS_RESEARCH.md` and `MODEL_PROPOSALS.md`.
 
-Contribution guidelines are scheduled for milestone M7. Until then: keep changes small, add tests for behaviour, and run the checks above before committing.
+See [CONTRIBUTING.md](https://github.com/kursluzz/reader-assistant/blob/main/CONTRIBUTING.md) for the development setup, the checks, pull requests and the release process.
