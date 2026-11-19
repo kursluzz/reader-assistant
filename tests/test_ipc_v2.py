@@ -274,7 +274,9 @@ def test_a_subscriber_that_never_reads_cannot_block_the_service(workdir: Path) -
     with live_service(workdir / "s.sock") as live:
         stalled = subscribe(live.path)  # opened, and then never read
         try:
-            for _ in range(60):
+            # Far more events than the queue holds (256), so the overflow does not depend on
+            # how much the kernel socket buffer absorbs.
+            for _ in range(1000):
                 request(live.path, "speak", {"text": "Short sentence."})
             wait_for(lambda: live.service.status().state.value == "idle", timeout=10)
             # The service still answers and still speaks.
