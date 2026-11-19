@@ -68,10 +68,10 @@ Contributors do not change version numbers in pull requests. A maintainer releas
    matches `pyproject.toml`, builds the wheel and the sdist once, checks them, and creates the GitHub
    Release with both files attached and the changelog section as its notes. The release page then shows
    a direct install command for the wheel.
-4. PyPI is a separate step, run by hand: start the "Publish to PyPI" workflow with the tag, for example
-   `v0.1.0`. It downloads the files of that GitHub Release and publishes those exact files, so PyPI and
-   the release carry the same bytes. It waits for the `pypi` environment's approval, if that is set up. It then waits for a maintainer to approve the `pypi` environment, publishes to
-   PyPI with trusted publishing, and creates the GitHub Release with the changelog section as its notes.
+4. PyPI is not used yet; the project is installed from GitHub. When the Product Owner decides to publish,
+   start the "Publish to PyPI" workflow by hand with the tag, for example `v0.1.0`. It downloads the files
+   of that GitHub Release and publishes those exact files, so PyPI and the release carry the same bytes.
+   The `pypi` environment's approval applies to that run, if it is set up.
 
 The first release, 0.1.0, is the one exception: its version is already set, so `bump-my-version` is not
 used. Rename `## [Unreleased]` in `CHANGELOG.md` to `## [0.1.0] - <date>`, keep an empty
