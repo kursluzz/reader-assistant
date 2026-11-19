@@ -20,7 +20,7 @@ Choose one source. Each one installs the `desktop` extra: both voice engines (`k
 **From a GitHub release**, using the wheel attached to it (replace `v0.1.0` with the release you want):
 
 ```bash
-uv tool install 'reader-assistant[desktop] @ https://github.com/kursluzz/reader-assistant/releases/download/v0.1.0/reader_assistant-0.1.0-py3-none-any.whl'
+uv tool install --python '>=3.12,<3.14' 'reader-assistant[desktop] @ https://github.com/kursluzz/reader-assistant/releases/download/v0.1.0/reader_assistant-0.1.0-py3-none-any.whl'
 ```
 
 **From the Git repository**, which is the current development state:
