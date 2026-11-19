@@ -20,7 +20,13 @@ From PyPI, once the release is published:
 uv tool install --python 3.12 'reader-assistant[desktop]'
 ```
 
-Until then, directly from the Git repository:
+From a GitHub Release, using the wheel attached to it (replace `v0.1.0` with the release you want):
+
+```bash
+uv tool install --python 3.12 'reader-assistant[desktop] @ https://github.com/kursluzz/reader-assistant/releases/download/v0.1.0/reader_assistant-0.1.0-py3-none-any.whl'
+```
+
+Or directly from the Git repository:
 
 ```bash
 uv tool install --python 3.12 'reader-assistant[desktop] @ git+https://github.com/kursluzz/reader-assistant'
