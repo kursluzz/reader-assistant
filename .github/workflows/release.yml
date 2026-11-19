@@ -9,8 +9,13 @@ permissions:
   contents: read
 
 jobs:
+  checks:
+    name: Run the CI checks on the tagged commit
+    uses: ./.github/workflows/ci.yml
+
   build:
     name: Build and check the tag
+    needs: checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

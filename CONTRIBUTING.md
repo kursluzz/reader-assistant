@@ -64,8 +64,9 @@ Contributors do not change version numbers in pull requests. A maintainer releas
    `v<version>`. Check the result with `git show`.
 2. Push the commit and the tag: `git push origin main --follow-tags`. Only the tag starts the release
    workflow. Ordinary pushes and pull requests run only the CI workflow.
-3. The release workflow checks that the tag matches `pyproject.toml`, builds the wheel and the sdist,
-   and smoke-tests both. It then waits for a maintainer to approve the `pypi` environment, publishes to
+3. The release workflow first runs the full CI checks on the tagged commit. It then checks that the tag
+   matches `pyproject.toml`, builds the wheel and the sdist once, and smoke-tests both. The same files
+   are published to PyPI and attached to the GitHub Release. It then waits for a maintainer to approve the `pypi` environment, publishes to
    PyPI with trusted publishing, and creates the GitHub Release with the changelog section as its notes.
 
 The first release, 0.1.0, is the one exception: its version is already set, so `bump-my-version` is not
